@@ -1,10 +1,14 @@
 import { Response } from 'express';
 import { query } from '../config/db';
 import { AuthRequest } from '../middleware/auth';
+import { notifyGroupMembers } from '../services/notificationService';
 
 export async function addExpense(req: AuthRequest, res: Response) {
   try {
     const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
     const { trip_id, group_id, amount, description, category, split_details } = req.body;
 
     if (!amount || !description || !category) {
@@ -44,6 +48,17 @@ export async function addExpense(req: AuthRequest, res: Response) {
         split_details ? JSON.stringify(split_details) : null
       ]
     );
+
+    if (group_id) {
+      const payer = await query('SELECT username FROM users WHERE id = $1', [userId]);
+      const payerUsername = payer[0]?.username || 'A group member';
+      notifyGroupMembers(
+        group_id,
+        userId,
+        `${payerUsername} logged a new expense "${description}" for $${amount}.`,
+        { expense_id: newExpense[0].id, amount, description }
+      ).catch(err => console.error('Failed to notify group members for expense:', err.message));
+    }
 
     res.status(201).json({ expense: newExpense[0] });
   } catch (err: any) {

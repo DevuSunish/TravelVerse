@@ -2,9 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { apiRequest } from '../services/api';
 import { 
-  Calendar, Clock, DollarSign, Plus, CheckCircle2, 
-  ListTodo, Trash2, ArrowRight, Play, CheckSquare, Square
+  Calendar, Clock, CheckCircle2, 
+  ListTodo, Trash2, CheckSquare, Square
 } from 'lucide-react';
+import { Trip } from '../components/TripCard';
 
 interface TodoItem {
   id: number;
@@ -13,8 +14,8 @@ interface TodoItem {
 }
 
 export const FutureTrips: React.FC = () => {
-  const [upcomingTrips, setUpcomingTrips] = useState<any[]>([]);
-  const [selectedTrip, setSelectedTrip] = useState<any>(null);
+  const [upcomingTrips, setUpcomingTrips] = useState<Trip[]>([]);
+  const [selectedTrip, setSelectedTrip] = useState<Trip | null>(null);
   const [loading, setLoading] = useState(true);
 
   // Checklist state
@@ -24,26 +25,7 @@ export const FutureTrips: React.FC = () => {
   // Countdowns
   const [daysLeft, setDaysLeft] = useState<number | null>(null);
 
-  const fetchUpcomingTrips = async () => {
-    setLoading(true);
-    try {
-      const data = await apiRequest('/trips?status=planned');
-      setUpcomingTrips(data.trips || []);
-      if (data.trips?.length > 0) {
-        handleSelectTrip(data.trips[0]);
-      }
-    } catch (err) {
-      console.error('Failed to load upcoming trips:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchUpcomingTrips();
-  }, []);
-
-  const handleSelectTrip = (trip: any) => {
+  const handleSelectTrip = (trip: Trip) => {
     setSelectedTrip(trip);
     
     // Load countdown
@@ -72,6 +54,26 @@ export const FutureTrips: React.FC = () => {
       localStorage.setItem(`checklist_trip_${trip.id}`, JSON.stringify(defaultChecklist));
     }
   };
+
+  const fetchUpcomingTrips = async () => {
+    setLoading(true);
+    try {
+      const data = await apiRequest('/trips?status=planned');
+      setUpcomingTrips(data.trips || []);
+      if (data.trips?.length > 0) {
+        handleSelectTrip(data.trips[0]);
+      }
+    } catch (err) {
+      console.error('Failed to load upcoming trips:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    fetchUpcomingTrips();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleToggleTodo = (id: number) => {
     if (!selectedTrip) return;

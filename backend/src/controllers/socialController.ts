@@ -2,6 +2,7 @@ import { Response } from 'express';
 import { query } from '../config/db';
 import { AuthRequest } from '../middleware/auth';
 import { getCountryCode } from './tripController';
+import { createNotification } from '../services/notificationService';
 
 // 1. Recommendations CRUD
 export async function createRecommendation(req: AuthRequest, res: Response) {
@@ -100,6 +101,24 @@ export async function toggleLike(req: AuthRequest, res: Response) {
         return res.json({ liked: false });
       } else {
         await query('INSERT INTO likes (user_id, trip_id) VALUES ($1, $2)', [userId, trip_id]);
+
+        // Notify owner
+        const trip = await query('SELECT user_id, title FROM trips WHERE id = $1', [trip_id]);
+        if (trip.length > 0 && trip[0].user_id !== userId) {
+          const sender = await query('SELECT username, profile_picture FROM users WHERE id = $1', [userId]);
+          const senderUsername = sender[0]?.username || req.user?.username;
+          const senderPic = sender[0]?.profile_picture || '';
+          
+          await createNotification(trip[0].user_id, 'like', {
+            message: `${senderUsername} liked your trip "${trip[0].title}".`,
+            sender_id: userId,
+            sender_username: senderUsername,
+            sender_profile_picture: senderPic,
+            trip_id,
+            trip_title: trip[0].title
+          });
+        }
+
         return res.json({ liked: true });
       }
     } else {
@@ -109,6 +128,24 @@ export async function toggleLike(req: AuthRequest, res: Response) {
         return res.json({ liked: false });
       } else {
         await query('INSERT INTO likes (user_id, recommendation_id) VALUES ($1, $2)', [userId, recommendation_id]);
+
+        // Notify owner
+        const rec = await query('SELECT user_id, title FROM recommendations WHERE id = $1', [recommendation_id]);
+        if (rec.length > 0 && rec[0].user_id !== userId) {
+          const sender = await query('SELECT username, profile_picture FROM users WHERE id = $1', [userId]);
+          const senderUsername = sender[0]?.username || req.user?.username;
+          const senderPic = sender[0]?.profile_picture || '';
+
+          await createNotification(rec[0].user_id, 'like', {
+            message: `${senderUsername} liked your recommendation "${rec[0].title}".`,
+            sender_id: userId,
+            sender_username: senderUsername,
+            sender_profile_picture: senderPic,
+            recommendation_id,
+            recommendation_title: rec[0].title
+          });
+        }
+
         return res.json({ liked: true });
       }
     }
@@ -141,6 +178,39 @@ export async function addComment(req: AuthRequest, res: Response) {
        WHERE c.id = $1`,
       [comment[0].id]
     );
+
+    // Notify owner
+    const sender = await query('SELECT username, profile_picture FROM users WHERE id = $1', [userId]);
+    const senderUsername = sender[0]?.username || req.user?.username;
+    const senderPic = sender[0]?.profile_picture || '';
+
+    if (trip_id) {
+      const trip = await query('SELECT user_id, title FROM trips WHERE id = $1', [trip_id]);
+      if (trip.length > 0 && trip[0].user_id !== userId) {
+        await createNotification(trip[0].user_id, 'comment', {
+          message: `${senderUsername} commented on your trip "${trip[0].title}": "${content.substring(0, 30)}${content.length > 30 ? '...' : ''}"`,
+          sender_id: userId,
+          sender_username: senderUsername,
+          sender_profile_picture: senderPic,
+          trip_id,
+          trip_title: trip[0].title,
+          comment_content: content
+        });
+      }
+    } else if (recommendation_id) {
+      const rec = await query('SELECT user_id, title FROM recommendations WHERE id = $1', [recommendation_id]);
+      if (rec.length > 0 && rec[0].user_id !== userId) {
+        await createNotification(rec[0].user_id, 'comment', {
+          message: `${senderUsername} commented on your recommendation "${rec[0].title}": "${content.substring(0, 30)}${content.length > 30 ? '...' : ''}"`,
+          sender_id: userId,
+          sender_username: senderUsername,
+          sender_profile_picture: senderPic,
+          recommendation_id,
+          recommendation_title: rec[0].title,
+          comment_content: content
+        });
+      }
+    }
 
     res.status(201).json({ comment: commentWithUser[0] });
   } catch (err: any) {
@@ -199,10 +269,16 @@ export async function followUser(req: AuthRequest, res: Response) {
     await query('INSERT INTO follows (follower_id, following_id) VALUES ($1, $2)', [followerId, userIdToFollow]);
     
     // Add notification
-    await query(
-      'INSERT INTO notifications (user_id, type, content) VALUES ($1, $2, $3)',
-      [userIdToFollow, 'follow', `${req.user?.username} started following you.`]
-    );
+    const sender = await query('SELECT username, profile_picture FROM users WHERE id = $1', [followerId]);
+    const senderUsername = sender[0]?.username || req.user?.username;
+    const senderPic = sender[0]?.profile_picture || '';
+    
+    await createNotification(userIdToFollow, 'follow', {
+      message: `${senderUsername} started following you.`,
+      sender_id: followerId,
+      sender_username: senderUsername,
+      sender_profile_picture: senderPic
+    });
 
     res.json({ followed: true });
   } catch (err: any) {
@@ -418,7 +494,7 @@ export async function removeFromWishlist(req: AuthRequest, res: Response) {
 export async function getNotifications(req: AuthRequest, res: Response) {
   try {
     const userId = req.user?.id;
-    const notifications = await query('SELECT * FROM notifications WHERE user_id = $1 ORDER BY created_at DESC LIMIT 20', [userId]);
+    const notifications = await query('SELECT * FROM notifications WHERE user_id = $1 ORDER BY created_at DESC LIMIT 50', [userId]);
     res.json({ notifications });
   } catch (err: any) {
     console.error('Get notifications error:', err.message);
@@ -435,5 +511,39 @@ export async function markNotificationRead(req: AuthRequest, res: Response) {
   } catch (err: any) {
     console.error('Read notification error:', err.message);
     res.status(500).json({ message: 'Server error marking notification read' });
+  }
+}
+
+export async function markAllNotificationsRead(req: AuthRequest, res: Response) {
+  try {
+    const userId = req.user?.id;
+    await query('UPDATE notifications SET is_read = TRUE WHERE user_id = $1', [userId]);
+    res.json({ message: 'All notifications marked as read' });
+  } catch (err: any) {
+    console.error('Mark all read error:', err.message);
+    res.status(500).json({ message: 'Server error marking all notifications read' });
+  }
+}
+
+export async function deleteNotification(req: AuthRequest, res: Response) {
+  try {
+    const userId = req.user?.id;
+    const { id } = req.params;
+    await query('DELETE FROM notifications WHERE id = $1 AND user_id = $2', [id, userId]);
+    res.json({ message: 'Notification deleted' });
+  } catch (err: any) {
+    console.error('Delete notification error:', err.message);
+    res.status(500).json({ message: 'Server error deleting notification' });
+  }
+}
+
+export async function deleteAllNotifications(req: AuthRequest, res: Response) {
+  try {
+    const userId = req.user?.id;
+    await query('DELETE FROM notifications WHERE user_id = $1', [userId]);
+    res.json({ message: 'All notifications cleared' });
+  } catch (err: any) {
+    console.error('Clear notifications error:', err.message);
+    res.status(500).json({ message: 'Server error clearing notifications' });
   }
 }

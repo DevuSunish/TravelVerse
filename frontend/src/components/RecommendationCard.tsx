@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Star, MapPin, Heart, MessageCircle, Navigation, Clock, DollarSign, Send } from 'lucide-react';
 import { apiRequest } from '../services/api';
 
@@ -23,24 +23,34 @@ export interface Recommendation {
   created_at: string;
 }
 
+interface Comment {
+  id: number;
+  username: string;
+  profile_picture?: string;
+  content: string;
+}
+
 interface RecommendationCardProps {
   rec: Recommendation;
   onLikeToggle?: (id: number, nowLiked: boolean) => void;
 }
 
 export const RecommendationCard: React.FC<RecommendationCardProps> = ({ rec, onLikeToggle }) => {
+  const [prevRec, setPrevRec] = useState(rec);
   const [liked, setLiked] = useState(rec.is_liked);
   const [likesCount, setLikesCount] = useState(Number(rec.likes_count));
+  const [commentsCount, setCommentsCount] = useState(Number(rec.comments_count));
   const [showComments, setShowComments] = useState(false);
-  const [comments, setComments] = useState<any[]>([]);
+  const [comments, setComments] = useState<Comment[]>([]);
   const [newComment, setNewComment] = useState('');
-  const [loadingComments, setLoadingComments] = useState(false);
 
-  // Sync state with props
-  useEffect(() => {
+  // Sync state synchronously during render if props change
+  if (rec.id !== prevRec.id || rec.is_liked !== prevRec.is_liked || rec.likes_count !== prevRec.likes_count || rec.comments_count !== prevRec.comments_count) {
+    setPrevRec(rec);
     setLiked(rec.is_liked);
     setLikesCount(Number(rec.likes_count));
-  }, [rec]);
+    setCommentsCount(Number(rec.comments_count));
+  }
 
   const handleLike = async () => {
     try {
@@ -57,7 +67,7 @@ export const RecommendationCard: React.FC<RecommendationCardProps> = ({ rec, onL
       if (onLikeToggle) {
         onLikeToggle(rec.id, res.liked);
       }
-    } catch (err) {
+    } catch {
       // Revert on error
       setLiked(rec.is_liked);
       setLikesCount(Number(rec.likes_count));
@@ -69,15 +79,12 @@ export const RecommendationCard: React.FC<RecommendationCardProps> = ({ rec, onL
       setShowComments(true);
       return;
     }
-    setLoadingComments(true);
     try {
       const data = await apiRequest(`/social/comment?recommendation_id=${rec.id}`);
       setComments(data.comments || []);
       setShowComments(true);
     } catch (err) {
       console.error('Failed to load comments:', err);
-    } finally {
-      setLoadingComments(false);
     }
   };
 
@@ -94,7 +101,7 @@ export const RecommendationCard: React.FC<RecommendationCardProps> = ({ rec, onL
         setComments(prev => [...prev, data.comment]);
         setNewComment('');
         // Increment comment counter in local view
-        rec.comments_count = Number(rec.comments_count) + 1;
+        setCommentsCount(prev => prev + 1);
       }
     } catch (err) {
       console.error('Post comment failed:', err);
@@ -216,7 +223,7 @@ export const RecommendationCard: React.FC<RecommendationCardProps> = ({ rec, onL
             className="flex items-center gap-1.5 text-sm font-semibold text-slate-500 dark:text-slate-400 hover:text-emerald-500 transition-colors"
           >
             <MessageCircle className="h-5 w-5" />
-            <span>{rec.comments_count}</span>
+            <span>{commentsCount}</span>
           </button>
         </div>
       </div>

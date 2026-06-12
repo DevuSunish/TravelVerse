@@ -2,18 +2,201 @@ import React, { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
+import { useNotifications } from '../context/NotificationContext';
 import { 
-  Compass, Map, Sparkles, MessageSquare, Award, 
-  Sun, Moon, Menu, X, LogOut, User as UserIcon, Settings, Calendar
+  Compass, Map, Sparkles, Award, 
+  Sun, Moon, Menu, X, LogOut, User as UserIcon, Settings, Calendar,
+  Bell, Trash2, Check, Heart, MessageSquare
 } from 'lucide-react';
 
 export const Navbar: React.FC = () => {
   const { user, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
+  const { 
+    notifications, 
+    unreadCount, 
+    markAsRead, 
+    markAllAsRead, 
+    deleteNotification, 
+    clearAllNotifications, 
+    respondToGroupInvite 
+  } = useNotifications();
   const navigate = useNavigate();
   const location = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [notifDropdownOpen, setNotifDropdownOpen] = useState(false);
+
+  const formatTimeAgo = (dateString: string) => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMins / 60);
+    const diffDays = Math.floor(diffHours / 24);
+
+    if (diffMins < 1) return 'Just now';
+    if (diffMins < 60) return `${diffMins}m ago`;
+    if (diffHours < 24) return `${diffHours}h ago`;
+    return `${diffDays}d ago`;
+  };
+
+  const getNotificationIcon = (type: string) => {
+    switch (type) {
+      case 'follow':
+        return <UserIcon className="h-4 w-4 text-blue-500" />;
+      case 'like':
+        return <Heart className="h-4 w-4 text-rose-500 fill-rose-500" />;
+      case 'comment':
+        return <MessageSquare className="h-4 w-4 text-emerald-500" />;
+      case 'group_invite':
+        return <UserIcon className="h-4 w-4 text-purple-500" />;
+      case 'group_accept':
+        return <Check className="h-4 w-4 text-emerald-500" />;
+      case 'group_decline':
+        return <X className="h-4 w-4 text-rose-500" />;
+      case 'collab':
+        return <Compass className="h-4 w-4 text-amber-500" />;
+      default:
+        return <Bell className="h-4 w-4 text-slate-400" />;
+    }
+  };
+
+  const handleGroupInviteResponse = async (e: React.MouseEvent, groupId: number, accept: boolean, notifId: number) => {
+    e.stopPropagation();
+    try {
+      await respondToGroupInvite(groupId, accept);
+      await markAsRead(notifId);
+    } catch (err) {
+      console.error('Failed to handle group invite response:', err);
+    }
+  };
+
+  const renderNotificationsDropdown = (alignClass: string) => {
+    return (
+      <div className={`absolute ${alignClass} mt-2 w-80 sm:w-96 rounded-2xl bg-white dark:bg-slate-900 border border-slate-150 dark:border-slate-800 shadow-xl py-3 z-50 animate-fade-in focus:outline-none glass`}>
+        {/* Dropdown Header */}
+        <div className="flex items-center justify-between px-4 pb-2 border-b border-slate-100 dark:border-slate-800">
+          <span className="text-sm font-bold text-slate-800 dark:text-slate-200 font-serif">Notifications</span>
+          <div className="flex gap-2.5">
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                markAllAsRead();
+              }}
+              className="text-xs text-emerald-600 hover:text-emerald-700 dark:text-emerald-400 dark:hover:text-emerald-350 font-semibold flex items-center gap-1 transition-colors cursor-pointer"
+              title="Mark all read"
+            >
+              <Check className="h-3.5 w-3.5" />
+              <span>Read All</span>
+            </button>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                clearAllNotifications();
+              }}
+              className="text-xs text-slate-450 hover:text-rose-500 dark:text-slate-400 dark:hover:text-rose-450 font-semibold flex items-center gap-1 transition-colors cursor-pointer"
+              title="Clear all"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              <span>Clear</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Dropdown Content */}
+        <div className="max-h-80 overflow-y-auto mt-2">
+          {notifications.length === 0 ? (
+            <div className="text-center py-8 text-slate-400 dark:text-slate-500">
+              <Bell className="h-8 w-8 mx-auto text-slate-350 dark:text-slate-650 mb-2 opacity-50" />
+              <p className="text-xs font-semibold">All caught up!</p>
+              <p className="text-[10px] opacity-75">No new notifications.</p>
+            </div>
+          ) : (
+            <div className="divide-y divide-slate-100/60 dark:divide-slate-800/40">
+              {notifications.map((notif) => {
+                const isUnread = !notif.is_read;
+                return (
+                  <div
+                    key={notif.id}
+                    onClick={() => {
+                      if (isUnread) markAsRead(notif.id);
+                    }}
+                    className={`relative p-3.5 flex gap-3 text-xs transition-all duration-200 hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer group ${
+                      isUnread
+                        ? 'bg-emerald-50/15 dark:bg-emerald-950/5 border-l-2 border-emerald-500 font-medium'
+                        : 'text-slate-600 dark:text-slate-400'
+                    }`}
+                  >
+                    {/* Icon or Avatar */}
+                    <div className="shrink-0">
+                      {notif.sender_profile_picture ? (
+                        <img
+                          src={notif.sender_profile_picture}
+                          alt={notif.sender_username || 'avatar'}
+                          className="h-8 w-8 rounded-full object-cover border border-slate-150 dark:border-slate-700 bg-emerald-50/20"
+                        />
+                      ) : (
+                        <div className="h-8 w-8 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center border border-slate-250/20">
+                          {getNotificationIcon(notif.type)}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Text content */}
+                    <div className="flex-1 min-w-0 pr-4">
+                      <p className="leading-normal break-words text-slate-850 dark:text-slate-300">
+                        {notif.message}
+                      </p>
+                      
+                      {/* Action buttons for group invitations */}
+                      {notif.type === 'group_invite' && notif.group_id && (
+                        <div className="flex items-center gap-2 mt-2" onClick={(e) => e.stopPropagation()}>
+                          <button
+                            onClick={(e) => handleGroupInviteResponse(e, notif.group_id!, true, notif.id)}
+                            className="bg-emerald-500 hover:bg-emerald-600 text-white font-bold px-3 py-1 rounded-lg text-[10px] shadow-xs cursor-pointer transition-colors"
+                          >
+                            Accept
+                          </button>
+                          <button
+                            onClick={(e) => handleGroupInviteResponse(e, notif.group_id!, false, notif.id)}
+                            className="bg-slate-150 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-750 dark:text-slate-300 font-bold px-3 py-1 rounded-lg text-[10px] cursor-pointer transition-colors"
+                          >
+                            Decline
+                          </button>
+                        </div>
+                      )}
+
+                      <span className="text-[10px] text-slate-400 dark:text-slate-500 block mt-1.5 font-normal">
+                        {formatTimeAgo(notif.created_at)}
+                      </span>
+                    </div>
+
+                    {/* Actions: delete & unread indicator */}
+                    <div className="absolute right-2.5 top-1/2 -translate-y-1/2 flex items-center gap-1.5">
+                      {isUnread && (
+                        <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 group-hover:hidden" />
+                      )}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          deleteNotification(notif.id);
+                        }}
+                        className="p-1 rounded-md text-slate-400 hover:text-rose-500 hover:bg-slate-100 dark:hover:bg-slate-800 opacity-0 group-hover:opacity-100 transition-all cursor-pointer"
+                        title="Delete notification"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
 
   const handleLogout = () => {
     logout();
@@ -80,6 +263,25 @@ export const Navbar: React.FC = () => {
               {theme === 'dark' ? <Sun className="h-5 w-5 text-amber-400" /> : <Moon className="h-5 w-5 text-slate-700" />}
             </button>
 
+            {/* Notification Bell */}
+            <div className="relative">
+              <button
+                onClick={() => setNotifDropdownOpen(!notifDropdownOpen)}
+                onBlur={() => setTimeout(() => setNotifDropdownOpen(false), 200)}
+                className="relative p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400 transition-colors duration-200 focus:outline-none"
+                aria-label="Notifications"
+              >
+                <Bell className="h-5 w-5" />
+                {unreadCount > 0 && (
+                  <span className="absolute top-1.5 right-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-rose-500 text-[8px] font-bold text-white ring-2 ring-white dark:ring-slate-900 animate-pulse">
+                    {unreadCount}
+                  </span>
+                )}
+              </button>
+
+              {notifDropdownOpen && renderNotificationsDropdown("right-0")}
+            </div>
+
             {/* Profile Dropdown */}
             <div className="relative">
               <button
@@ -132,6 +334,25 @@ export const Navbar: React.FC = () => {
             >
               {theme === 'dark' ? <Sun className="h-5 w-5 text-amber-400" /> : <Moon className="h-5 w-5 text-slate-700" />}
             </button>
+
+            {/* Mobile Notification Bell */}
+            <div className="relative">
+              <button
+                onClick={() => setNotifDropdownOpen(!notifDropdownOpen)}
+                onBlur={() => setTimeout(() => setNotifDropdownOpen(false), 200)}
+                className="relative p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400 focus:outline-none"
+                aria-label="Notifications"
+              >
+                <Bell className="h-5 w-5" />
+                {unreadCount > 0 && (
+                  <span className="absolute top-1.5 right-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-rose-500 text-[8px] font-bold text-white ring-2 ring-white dark:ring-slate-900 animate-pulse">
+                    {unreadCount}
+                  </span>
+                )}
+              </button>
+
+              {notifDropdownOpen && renderNotificationsDropdown("right-0 translate-x-[40px] xs:translate-x-0")}
+            </div>
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
               className="p-2 rounded-lg text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"

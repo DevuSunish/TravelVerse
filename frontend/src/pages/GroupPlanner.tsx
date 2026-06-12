@@ -2,18 +2,79 @@ import React, { useState, useEffect } from 'react';
 import { apiRequest } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { 
-  Users, UserPlus, Calendar, DollarSign, Plus, Check, X, 
-  Vote, PlusCircle, CheckCircle, FileText, ArrowRight, Trash2, HelpCircle
+  Users, Check, X, Vote, Trash2, Plus
 } from 'lucide-react';
+
+interface Group {
+  id: number;
+  name: string;
+  description?: string;
+  created_at: string;
+}
+
+interface Invitation {
+  id: number;
+  name: string;
+  description?: string;
+  role: string;
+  status: 'pending' | 'accepted' | 'declined';
+}
+
+interface GroupMember {
+  id: number;
+  group_id: number;
+  user_id: number;
+  username: string;
+  status: 'pending' | 'accepted' | 'declined';
+  profile_picture?: string;
+  role?: string;
+}
+
+interface GroupItinerary {
+  id: number;
+  group_id: number;
+  day_number: number;
+  notes?: string;
+}
+
+interface GroupActivity {
+  id: number;
+  group_id: number;
+  title: string;
+  description?: string;
+  cost: number;
+  votes_count: number;
+}
+
+interface GroupExpense {
+  id: number;
+  group_id: number;
+  paid_by_user_id: number;
+  paid_by_username: string;
+  amount: number;
+  description: string;
+  category: string;
+  created_at: string;
+}
+
+interface GroupDetails {
+  id: number;
+  name: string;
+  description?: string;
+  members: GroupMember[];
+  itineraries: GroupItinerary[];
+  activities: GroupActivity[];
+  expenses: GroupExpense[];
+}
 
 export const GroupPlanner: React.FC = () => {
   const { user } = useAuth();
   
   // Lists
-  const [groups, setGroups] = useState<any[]>([]);
-  const [invitations, setInvitations] = useState<any[]>([]);
-  const [selectedGroup, setSelectedGroup] = useState<any>(null);
-  const [groupDetails, setGroupDetails] = useState<any>(null);
+  const [groups, setGroups] = useState<Group[]>([]);
+  const [invitations, setInvitations] = useState<Invitation[]>([]);
+  const [selectedGroup, setSelectedGroup] = useState<Group | null>(null);
+  const [groupDetails, setGroupDetails] = useState<GroupDetails | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadingDetails, setLoadingDetails] = useState(false);
 
@@ -44,28 +105,7 @@ export const GroupPlanner: React.FC = () => {
   const [activityCost, setActivityCost] = useState('');
   const [addingActivity, setAddingActivity] = useState(false);
 
-  const fetchGroups = async () => {
-    try {
-      const data = await apiRequest('/groups');
-      setGroups(data.groups || []);
-      setInvitations(data.invitations || []);
-      
-      // Auto select first group if none selected
-      if (data.groups?.length > 0 && !selectedGroup) {
-        handleSelectGroup(data.groups[0]);
-      }
-    } catch (err) {
-      console.error('Failed to load groups:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchGroups();
-  }, []);
-
-  const handleSelectGroup = async (group: any) => {
+  const handleSelectGroup = async (group: Group) => {
     setSelectedGroup(group);
     setLoadingDetails(true);
     setInviteMessage(null);
@@ -88,6 +128,28 @@ export const GroupPlanner: React.FC = () => {
       setLoadingDetails(false);
     }
   };
+
+  const fetchGroups = async () => {
+    try {
+      const data = await apiRequest('/groups');
+      setGroups(data.groups || []);
+      setInvitations(data.invitations || []);
+      
+      // Auto select first group if none selected
+      if (data.groups?.length > 0 && !selectedGroup) {
+        handleSelectGroup(data.groups[0]);
+      }
+    } catch (err) {
+      console.error('Failed to load groups:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    fetchGroups();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleCreateGroup = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -138,8 +200,9 @@ export const GroupPlanner: React.FC = () => {
       // Refresh details to show pending list
       const details = await apiRequest(`/groups/${selectedGroup.id}`);
       setGroupDetails(details);
-    } catch (err: any) {
-      setInviteMessage(err.message || 'Failed to send invitation.');
+    } catch (err: unknown) {
+      const errorObject = err as { message?: string };
+      setInviteMessage(errorObject.message || 'Failed to send invitation.');
     } finally {
       setInviting(false);
     }
@@ -187,11 +250,13 @@ export const GroupPlanner: React.FC = () => {
         }
       });
       // Refresh local data
-      const updatedList = groupDetails.itineraries.map((it: any) => {
-        if (it.day_number === selectedDayNum) return { ...it, notes: dayNotes };
-        return it;
-      });
-      setGroupDetails({ ...groupDetails, itineraries: updatedList });
+      if (groupDetails) {
+        const updatedList = groupDetails.itineraries.map((it) => {
+          if (it.day_number === selectedDayNum) return { ...it, notes: dayNotes };
+          return it;
+        });
+        setGroupDetails({ ...groupDetails, itineraries: updatedList });
+      }
     } catch (err) {
       console.error('Save group itinerary notes failed:', err);
     } finally {
@@ -235,7 +300,7 @@ export const GroupPlanner: React.FC = () => {
         body: { activityId }
       });
       if (data.activity && groupDetails) {
-        const updatedActivities = groupDetails.activities.map((a: any) => {
+        const updatedActivities = groupDetails.activities.map((a) => {
           if (a.id === activityId) return { ...a, votes_count: data.activity.votes_count };
           return a;
         });
@@ -247,7 +312,7 @@ export const GroupPlanner: React.FC = () => {
   };
 
   const handleDeleteExpense = async (expId: number) => {
-    if (!window.confirm('Delete this expense?')) return;
+    if (!window.confirm('Delete this expense?') || !selectedGroup) return;
     try {
       await apiRequest(`/expenses/${expId}`, { method: 'DELETE' });
       // Refresh group details
@@ -263,26 +328,26 @@ export const GroupPlanner: React.FC = () => {
     if (!groupDetails?.expenses) return { totalSpent: 0, balancesList: [] };
     
     let totalSpent = 0;
-    groupDetails.expenses.forEach((e: any) => {
-      totalSpent += parseFloat(e.amount || '0');
+    groupDetails.expenses.forEach((e) => {
+      totalSpent += parseFloat(String(e.amount) || '0');
     });
 
     // We can parse or display the backend-calculated balances.
     // Let's compute group member balances here for instant react responsiveness:
     const balances: { [username: string]: number } = {};
-    const activeMembers = groupDetails.members.filter((m: any) => m.status === 'accepted');
+    const activeMembers = groupDetails.members.filter((m) => m.status === 'accepted');
     
-    activeMembers.forEach((m: any) => {
+    activeMembers.forEach((m) => {
       balances[m.username] = 0;
     });
 
     const share = activeMembers.length > 0 ? totalSpent / activeMembers.length : 0;
 
-    groupDetails.expenses.forEach((e: any) => {
-      const amt = parseFloat(e.amount || '0');
+    groupDetails.expenses.forEach((e) => {
+      const amt = parseFloat(String(e.amount) || '0');
       const payer = e.paid_by_username;
       
-      activeMembers.forEach((m: any) => {
+      activeMembers.forEach((m) => {
         if (m.username === payer) {
           balances[payer] += (amt - share);
         } else if (balances[m.username] !== undefined) {
@@ -412,7 +477,7 @@ export const GroupPlanner: React.FC = () => {
                       <div className="flex items-center gap-1.5 mt-4">
                         <span className="text-[10px] uppercase font-bold text-slate-400 mr-2">Members:</span>
                         <div className="flex -space-x-2.5 overflow-hidden">
-                          {groupDetails.members.map((m: any) => (
+                          {groupDetails.members.map((m) => (
                             <img
                               key={m.id}
                               src={m.profile_picture || 'https://api.dicebear.com/7.x/adventurer/svg?seed=avatar'}
@@ -532,7 +597,7 @@ export const GroupPlanner: React.FC = () => {
                           {groupDetails.activities?.length === 0 ? (
                             <p className="text-xs text-slate-400 text-center py-6">No proposed activities yet. Suggest one!</p>
                           ) : (
-                            groupDetails.activities.map((act: any) => (
+                            groupDetails.activities.map((act) => (
                               <div key={act.id} className="flex justify-between items-center p-3 rounded-xl bg-slate-50 dark:bg-slate-800/40 text-xs">
                                 <div>
                                   <span className="font-bold text-slate-750 dark:text-slate-200 block">{act.title}</span>
@@ -567,7 +632,7 @@ export const GroupPlanner: React.FC = () => {
                         </div>
 
                         <div className="space-y-2 max-h-[180px] overflow-y-auto pr-1">
-                          {balancesList.map((bal: any, idx: number) => {
+                          {balancesList.map((bal, idx: number) => {
                             const isPositive = bal.balance > 0;
                             const isZero = bal.balance === 0;
 
@@ -642,7 +707,7 @@ export const GroupPlanner: React.FC = () => {
                           {groupDetails.expenses?.length === 0 ? (
                             <p className="text-xs text-slate-400 text-center py-6">No expenses logged yet.</p>
                           ) : (
-                            groupDetails.expenses.map((exp: any) => (
+                            groupDetails.expenses.map((exp) => (
                               <div key={exp.id} className="flex justify-between items-center p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/40 text-xs border border-transparent hover:border-slate-200/40 transition-all">
                                 <div>
                                   <span className="font-bold text-slate-800 dark:text-slate-200 block leading-tight">{exp.description}</span>

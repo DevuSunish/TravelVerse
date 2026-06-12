@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { apiRequest } from '../services/api';
-import { Save, User as UserIcon, Globe, Info, Heart, CheckCircle2 } from 'lucide-react';
+import { Save, User as UserIcon, Globe, CheckCircle2 } from 'lucide-react';
 
 export const Settings: React.FC = () => {
   const { user, updateUser } = useAuth();
