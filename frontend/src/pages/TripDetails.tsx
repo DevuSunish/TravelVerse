@@ -2,21 +2,55 @@ import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { apiRequest } from '../services/api';
 import { 
-  Calendar, MapPin, DollarSign, Image as ImageIcon, 
-  Clock, Plus, ChevronRight, Save, Trash2, ArrowLeft,
+  Calendar, MapPin, Image as ImageIcon, 
+  Clock, Save, Trash2, ArrowLeft,
   Utensils, Compass, Hotel, Landmark, Car, HelpCircle
 } from 'lucide-react';
 
+interface Itinerary {
+  id: number;
+  day_number: number;
+  date?: string;
+  notes?: string;
+}
+
+interface Expense {
+  id: number;
+  amount: number;
+  description: string;
+  category: string;
+}
+
+interface Photo {
+  id: number;
+  photo_url: string;
+  caption?: string;
+}
+
+interface Trip {
+  id: number;
+  title: string;
+  city?: string;
+  country: string;
+  start_date?: string;
+  end_date?: string;
+  budget: number;
+  cover_image?: string;
+  itineraries: Itinerary[];
+  expenses: Expense[];
+  photos: Photo[];
+}
+
 export const TripDetails: React.FC = () => {
   const { id } = useParams<{ id: string }>();
-  const [trip, setTrip] = useState<any>(null);
+  const [trip, setTrip] = useState<Trip | null>(null);
   const [loading, setLoading] = useState(true);
   
   // Tab selector
   const [activeTab, setActiveTab] = useState<'itinerary' | 'expenses' | 'photos'>('itinerary');
 
   // Interactive Itinerary Form
-  const [selectedDay, setSelectedDay] = useState<any>(null);
+  const [selectedDay, setSelectedDay] = useState<Itinerary | null>(null);
   const [itineraryNotes, setItineraryNotes] = useState('');
   const [savingItinerary, setSavingItinerary] = useState(false);
 
@@ -48,17 +82,18 @@ export const TripDetails: React.FC = () => {
   };
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     loadTripDetails();
-  }, [id]);
+  }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const handleDaySelect = (day: any) => {
+  const handleDaySelect = (day: Itinerary) => {
     setSelectedDay(day);
     setItineraryNotes(day.notes || '');
   };
 
   // Itinerary save
   const handleSaveItinerary = async () => {
-    if (!selectedDay) return;
+    if (!selectedDay || !trip) return;
     setSavingItinerary(true);
     try {
       await apiRequest('/trips/itinerary', {
@@ -71,7 +106,7 @@ export const TripDetails: React.FC = () => {
         }
       });
       // Refresh local data
-      const updatedItineraryList = trip.itineraries.map((it: any) => {
+      const updatedItineraryList = trip.itineraries.map((it: Itinerary) => {
         if (it.day_number === selectedDay.day_number) {
           return { ...it, notes: itineraryNotes };
         }
@@ -90,7 +125,7 @@ export const TripDetails: React.FC = () => {
   // Expense save
   const handleAddExpense = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!expAmount || !expDesc || !expCategory) return;
+    if (!expAmount || !expDesc || !expCategory || !trip) return;
     setAddingExpense(true);
 
     try {
@@ -121,12 +156,12 @@ export const TripDetails: React.FC = () => {
 
   // Expense delete
   const handleDeleteExpense = async (expId: number) => {
-    if (!window.confirm('Delete this expense?')) return;
+    if (!window.confirm('Delete this expense?') || !trip) return;
     try {
       await apiRequest(`/expenses/${expId}`, { method: 'DELETE' });
       setTrip({
         ...trip,
-        expenses: trip.expenses.filter((e: any) => e.id !== expId)
+        expenses: trip.expenses.filter((e: Expense) => e.id !== expId)
       });
     } catch (err) {
       console.error('Delete expense failed:', err);
@@ -136,7 +171,7 @@ export const TripDetails: React.FC = () => {
   // Photo save
   const handleAddPhoto = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!photoUrl) return;
+    if (!photoUrl || !trip) return;
     setAddingPhoto(true);
 
     try {
@@ -171,8 +206,8 @@ export const TripDetails: React.FC = () => {
       'Food': 0, 'Lodging': 0, 'Transport': 0, 'Activities': 0, 'Shopping': 0, 'Other': 0
     };
 
-    expensesList.forEach((exp: any) => {
-      const val = parseFloat(exp.amount || '0');
+    expensesList.forEach((exp: Expense) => {
+      const val = typeof exp.amount === 'number' ? exp.amount : parseFloat((exp.amount as string) || '0');
       totalSpent += val;
       if (categories[exp.category] !== undefined) {
         categories[exp.category] += val;
@@ -202,11 +237,10 @@ export const TripDetails: React.FC = () => {
   }
 
   const { totalSpent, categories } = getExpenseMetrics();
-  const remainingBudget = trip.budget - totalSpent;
   const budgetRatio = trip.budget > 0 ? (totalSpent / trip.budget) * 100 : 0;
 
   // Icon mapping for categories
-  const categoryIcons: { [key: string]: any } = {
+  const categoryIcons: Record<string, React.ComponentType<{ className?: string }>> = {
     'Food': Utensils,
     'Lodging': Hotel,
     'Transport': Car,
@@ -321,7 +355,7 @@ export const TripDetails: React.FC = () => {
                 {trip.itineraries?.length === 0 ? (
                   <p className="text-xs text-slate-400 text-center py-6">No dates scheduled. Update start and end dates to generate days!</p>
                 ) : (
-                  trip.itineraries.map((day: any) => (
+                  trip.itineraries.map((day: Itinerary) => (
                     <button
                       key={day.id}
                       onClick={() => handleDaySelect(day)}
@@ -511,7 +545,7 @@ export const TripDetails: React.FC = () => {
                   {trip.expenses?.length === 0 ? (
                     <p className="text-xs text-slate-400 text-center py-8">No expenses logged yet. Save receipts above!</p>
                   ) : (
-                    trip.expenses.map((exp: any) => {
+                    trip.expenses.map((exp: Expense) => {
                       const CatIcon = categoryIcons[exp.category] || HelpCircle;
                       const catColor = categoryColors[exp.category];
 
@@ -602,7 +636,7 @@ export const TripDetails: React.FC = () => {
                 </div>
               ) : (
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-                  {trip.photos.map((ph: any) => (
+                  {trip.photos.map((ph: Photo) => (
                     <div key={ph.id} className="relative group aspect-square rounded-xl overflow-hidden bg-slate-100 border border-slate-150">
                       <img
                         src={ph.photo_url}

@@ -2,8 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { apiRequest } from '../services/api';
 import { RecommendationCard, Recommendation } from '../components/RecommendationCard';
 import { 
-  Award, Search, Plus, Filter, X, 
-  MapPin, Star, Compass, AlertCircle
+  Search, Plus, X, Star, Compass, AlertCircle
 } from 'lucide-react';
 
 export const RecommendationsFeed: React.FC = () => {
@@ -62,6 +61,7 @@ export const RecommendationsFeed: React.FC = () => {
       fetchRecommendations();
     }, 300);
     return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [search, selectedCategory]);
 
   const handleCreateRecommendation = async (e: React.FormEvent) => {
@@ -107,8 +107,9 @@ export const RecommendationsFeed: React.FC = () => {
       setPhotos('');
       setShowForm(false);
       fetchRecommendations();
-    } catch (err: any) {
-      setError(err.message || 'Failed to submit recommendation.');
+    } catch (err: unknown) {
+      const errorObject = err as { message?: string };
+      setError(errorObject.message || 'Failed to submit recommendation.');
     } finally {
       setSubmitting(false);
     }

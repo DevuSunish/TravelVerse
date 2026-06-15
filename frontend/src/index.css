@@ -18,6 +18,16 @@
   --animate-float: float 6s ease-in-out infinite;
   --animate-pulse-slow: pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
   --animate-fade-in: fadeIn 0.4s ease-out forwards;
+
+  /* Restored typography scale to fix global font-size regression */
+  --font-size-xs: 0.8125rem;
+  --font-size-sm: 0.9375rem;
+  --font-size-base: 1.0625rem;
+  --font-size-lg: 1.1875rem;
+  --font-size-xl: 1.3125rem;
+  --font-size-2xl: 1.625rem;
+  --font-size-3xl: 2rem;
+  --font-size-4xl: 2.5rem;
 }
 
 @keyframes float {
@@ -53,6 +63,18 @@
 body {
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
   overflow-x: hidden;
+  font-size: 1.0625rem; /* baseline text-base */
+  line-height: 1.6;
+}
+
+/* Headings typography reset to match custom sizes */
+h1, h2, h3, h4, h5, h6 {
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+}
+
+/* Ensure buttons, inputs, select elements have adequate legible font size */
+button, input, select, textarea {
+  font-size: 0.9375rem; /* matches --font-size-sm */
 }
 
 /* Leaflet Container overrides */

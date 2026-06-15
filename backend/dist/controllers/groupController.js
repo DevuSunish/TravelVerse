@@ -146,11 +146,26 @@ async function voteOnActivity(req, res) {
     try {
         const userId = req.user?.id;
         const { activityId } = req.body;
-        // Increment votes
-        const updated = await (0, db_1.query)('UPDATE activities SET votes_count = votes_count + 1 WHERE id = $1 RETURNING *', [activityId]);
-        if (updated.length === 0) {
+        // Verify membership / ownership
+        const activityInfo = await (0, db_1.query)('SELECT group_id, trip_id FROM activities WHERE id = $1', [activityId]);
+        if (activityInfo.length === 0) {
             return res.status(404).json({ message: 'Activity not found' });
         }
+        const { group_id: groupId, trip_id: tripId } = activityInfo[0];
+        if (groupId) {
+            const membership = await (0, db_1.query)('SELECT 1 FROM group_members WHERE group_id = $1 AND user_id = $2 AND status = \'accepted\'', [groupId, userId]);
+            if (membership.length === 0) {
+                return res.status(403).json({ message: 'Unauthorized to vote on this activity' });
+            }
+        }
+        else if (tripId) {
+            const tripCheck = await (0, db_1.query)('SELECT 1 FROM trips WHERE id = $1 AND user_id = $2', [tripId, userId]);
+            if (tripCheck.length === 0) {
+                return res.status(403).json({ message: 'Unauthorized to vote on this activity' });
+            }
+        }
+        // Increment votes
+        const updated = await (0, db_1.query)('UPDATE activities SET votes_count = votes_count + 1 WHERE id = $1 RETURNING *', [activityId]);
         res.json({ activity: updated[0] });
     }
     catch (err) {

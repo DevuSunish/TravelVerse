@@ -181,7 +181,7 @@ export async function generateItinerary(req: AuthRequest, res: Response) {
 
 export async function askAssistant(req: AuthRequest, res: Response) {
   try {
-    const { question, context } = req.body; // context is optional (e.g. past history or destination)
+    const { question, context, history } = req.body; // history is an array of previous messages
 
     if (!question) {
       return res.status(400).json({ message: 'Question is required' });
@@ -189,19 +189,202 @@ export async function askAssistant(req: AuthRequest, res: Response) {
 
     const apiKey = process.env.GEMINI_API_KEY;
 
+    // Check if the query is travel-related
+    const travelKeywords = [
+      'travel', 'trip', 'visit', 'flight', 'hotel', 'map', 'packing', 'custom', 
+      'safety', 'safe', 'budget', 'food', 'eat', 'restaurant', 'weather', 'season', 
+      'passport', 'visa', 'transit', 'train', 'bus', 'metro', 'airport', 'ticket', 
+      'luggage', 'baggage', 'explore', 'guide', 'attraction', 'currency', 'money', 
+      'cost', 'price', 'booking', 'insurance', 'rome', 'italy', 'tokyo', 'japan', 
+      'paris', 'france', 'london', 'uk', 'united kingdom'
+    ];
+    
+    const qLower = question.toLowerCase();
+    const isTravelRelated = travelKeywords.some(keyword => qLower.includes(keyword));
+
+    if (!isTravelRelated) {
+      return res.json({
+        answer: `I am your TravelVerse Concierge, specialized in global travel planning, local insights, safety guidelines, and culinary recommendations. How can I help you with your next adventure?`,
+        isMock: true
+      });
+    }
+
     if (!apiKey) {
       console.warn('GEMINI_API_KEY not found. Returning helpful template-based travel assistant response.');
       
-      // Let's generate a smart mock answer based on keywords in the question
-      const q = question.toLowerCase();
-      let answer = `That is an excellent travel question! Without a live Gemini connection, here are some general tips: \n\n1. **Always plan transit in advance**: Research regional rail passes or subway cards to save up to 40%.\n2. **Safety First**: Make copies of your passport, and store digital copies securely in your email.\n3. **Local Cuisine**: Look for restaurants filled with locals, typically 2-3 blocks away from main tourist spots.\n\nPlease enter your GEMINI_API_KEY in the backend .env file to enable custom, fully intelligent real-time travel AI advice!`;
+      // Determine the active topic from current question or conversation history
+      let activeTopic = '';
+      if (qLower.includes('rome') || qLower.includes('italy')) activeTopic = 'Rome';
+      else if (qLower.includes('tokyo') || qLower.includes('japan')) activeTopic = 'Tokyo';
+      else if (qLower.includes('paris') || qLower.includes('france')) activeTopic = 'Paris';
+      else if (qLower.includes('london') || qLower.includes('uk') || qLower.includes('united kingdom')) activeTopic = 'London';
       
-      if (q.includes('safety') || q.includes('safe')) {
-        answer = `When traveling, safety is paramount. Here are key guidelines:\n\n- **Stay Alert in Crowds**: Pickpocketing is common in major hubs like train stations and landmarks.\n- **Travel Insurance**: Get comprehensive coverage including health and cancellation protection.\n- **Emergency Numbers**: Save local police/medical numbers (e.g., 112 in EU, 911 in US) and your embassy coordinates.\n- **Night Transit**: Prefer registered taxi services (or apps like Uber/Grab) over walking alone at night in unfamiliar neighborhoods.`;
-      } else if (q.includes('transport') || q.includes('bus') || q.includes('train') || q.includes('metro')) {
-        answer = `Navigating a new city can be easy with these transportation guidelines:\n\n- **Transit Cards**: Cities like London (Oyster), Tokyo (Suica), and Paris (Navigo) offer integrated tap cards that work across subways, buses, and trains.\n- **High-Speed Rail**: If traveling between cities (e.g., Shinkansen in Japan, TGV in France), booking tickets 2-4 weeks in advance yields major savings.\n- **Walking Maps**: Download Google Maps or Maps.me offline data before leaving your hotel to navigate without roaming data.`;
-      } else if (q.includes('season') || q.includes('weather') || q.includes('when to visit') || q.includes('best time')) {
-        answer = `Choosing the right travel season makes a huge difference:\n\n- **Shoulder Season**: The absolute best value (spring or autumn). Lower prices, milder weather, and fewer crowds.\n- **High Season (Summer/Holidays)**: Perfect weather but peak prices and long queues. Requires booking flights/lodging months in advance.\n- **Low Season**: Great for budget travel, but expect wetter/colder weather and some attractions to close early.`;
+      // If not in current question, look back at history
+      if (!activeTopic && Array.isArray(history)) {
+        for (let i = history.length - 1; i >= 0; i--) {
+          const txt = history[i].text?.toLowerCase() || '';
+          if (txt.includes('rome') || txt.includes('italy')) { activeTopic = 'Rome'; break; }
+          if (txt.includes('tokyo') || txt.includes('japan')) { activeTopic = 'Tokyo'; break; }
+          if (txt.includes('paris') || txt.includes('france')) { activeTopic = 'Paris'; break; }
+          if (txt.includes('london') || txt.includes('uk') || txt.includes('united kingdom')) { activeTopic = 'London'; break; }
+        }
+      }
+
+      // Default fallback responses
+      let answer = `### Global Travel Tips 🌍
+
+Here are some top travel tips from TravelVerse:
+* **Plan Transit in Advance**: Research regional rail passes or subway cards to save up to 40% on fares.
+* **Safety First**: Keep digital copies of your passport and visa stored securely in your cloud email.
+* **Eat Local**: Look for busy restaurants 2-3 blocks away from main tourist spots to find authentic, cheap food.
+
+*Note: I am currently running in Offline Demo Mode. For live, personalized travel recommendations from my AI core, please connect TravelVerse to the internet.*`;
+
+      if (qLower.includes('safety') || qLower.includes('safe')) {
+        if (activeTopic === 'Rome') {
+          answer = `### 🔒 Safety in Rome, Italy
+When visiting Rome, keep these safety guidelines in mind:
+* **Watch out for Pickpockets**: Be extremely alert at crowded metro stations (Termini, Colosseo), Termini Station, and tourist spots like the Trevi Fountain.
+* **Bag Safety**: Keep bags zipped and hold them in front of you. Never leave your phone on the restaurant tables.
+* **Emergency Info**: The general European emergency number is **112**. Keep your embassy phone number handy.
+
+*Note: I am currently running in Offline Demo Mode. For live, personalized travel recommendations from my AI core, please connect TravelVerse to the internet.*`;
+        } else if (activeTopic === 'Tokyo') {
+          answer = `### 🔒 Safety in Tokyo, Japan
+Tokyo is consistently ranked as one of the safest cities in the world:
+* **Lost Items**: If you lose something in a metro station or taxi, check the local Koban (police box). Items are returned almost 95% of the time.
+* **Earthquake Prep**: Familiarize yourself with emergency exits at your hotel.
+* **Emergency Info**: Call **110** for police and **119** for ambulance/fire.
+
+*Note: I am currently running in Offline Demo Mode. For live, personalized travel recommendations from my AI core, please connect TravelVerse to the internet.*`;
+        } else {
+          answer = `### 🔒 Global Safety Guidelines
+When traveling, safety is paramount. Keep these guidelines in mind:
+* **Stay Alert in Crowds**: Pickpocketing is common in major transit hubs and landmarks.
+* **Travel Insurance**: Get comprehensive coverage including health and cancellation protection.
+* **Emergency Contacts**: Save local emergency numbers (e.g., 112 in EU, 911 in US) and your embassy coordinates.
+* **Night Transit**: Prefer registered taxi services or ride-hailing apps over walking alone in unfamiliar neighborhoods.
+
+*Note: I am currently running in Offline Demo Mode. For live, personalized travel recommendations from my AI core, please connect TravelVerse to the internet.*`;
+        }
+      } else if (qLower.includes('transport') || qLower.includes('bus') || qLower.includes('train') || qLower.includes('metro') || qLower.includes('airport') || qLower.includes('get there')) {
+        if (activeTopic === 'Rome') {
+          answer = `### 🚇 Transit & Airport Guide for Rome
+Getting around Rome is easy once you know the routes:
+* **Airport Transfer**: Take the **Leonardo Express** train from Fiumicino Airport (FCO) directly to Termini Station. It takes 32 minutes and costs €14.
+* **Metro & Bus**: Rome has Metro lines A and B. Buy a single €1.50 ticket (valid for 100 minutes) or a 24h/48h pass. You must validate tickets before boarding buses.
+* **Walking**: Rome is best explored on foot. Wear comfortable sneakers!
+
+*Note: I am currently running in Offline Demo Mode. For live, personalized travel recommendations from my AI core, please connect TravelVerse to the internet.*`;
+        } else if (activeTopic === 'Tokyo') {
+          answer = `### 🚇 Transit & Airport Guide for Tokyo
+Tokyo has one of the world's most advanced transit networks:
+* **Airport Transfer**:
+  * **Narita (NRT)**: Use the **JR Narita Express (N'EX)** to Tokyo/Shibuya/Shinjuku (approx. 60 mins) or the **Keisei Skyliner** to Ueno.
+  * **Haneda (HND)**: Take the **Tokyo Monorail** or the **Keikyu Airport Line** (approx. 15-20 mins).
+* **IC Cards**: Purchase a digital **Suica** or **Pasmo** card for your phone. You can tap it to ride all trains, subway lines, and buses.
+* **Metro Passes**: Look into the Tokyo Subway Ticket (24h/48h/72h options) for unlimited rides on Tokyo Metro & Toei Subway.
+
+*Note: I am currently running in Offline Demo Mode. For live, personalized travel recommendations from my AI core, please connect TravelVerse to the internet.*`;
+        } else if (activeTopic === 'Paris') {
+          answer = `### 🚇 Transit & Airport Guide for Paris
+Paris has an excellent public transport system:
+* **Airport Transfer**: From Charles de Gaulle (CDG), take the **RER B** train directly to Gare du Nord or Châtelet (€11.80).
+* **Metro**: Paris has 14 metro lines. You can tap your phone or credit card on the Navigo Easy pass to ride.
+* **Train Pass**: If staying for a full calendar week, a Navigo Weekly Pass offers unlimited travel.
+
+*Note: I am currently running in Offline Demo Mode. For live, personalized travel recommendations from my AI core, please connect TravelVerse to the internet.*`;
+        } else {
+          answer = `### 🚇 Global Transportation Guidelines
+Navigating a new city can be simple with these guidelines:
+* **Transit Cards**: Use contactless payment or smartcards (like London's Oyster, Tokyo's Suica, Paris's Navigo) for discounted rates.
+* **High-Speed Rail**: Book tickets 2-4 weeks in advance for intercity routes (e.g. Shinkansen in Japan, TGV in France) to save up to 50%.
+* **Offline Maps**: Download Google Maps or Maps.me offline maps before leaving your hotel to navigate without cellular data.
+
+*Note: I am currently running in Offline Demo Mode. For live, personalized travel recommendations from my AI core, please connect TravelVerse to the internet.*`;
+        }
+      } else if (qLower.includes('season') || qLower.includes('weather') || qLower.includes('when to visit') || qLower.includes('best time')) {
+        if (activeTopic === 'Rome') {
+          answer = `### ☀️ Best Time to Visit Rome
+* **Shoulder Season (April-May & September-October)**: Mild weather, gorgeous sunsets, and moderate crowds. Perfect for sightseeing.
+* **Summer (June-August)**: Extremely hot (often over 35°C/95°F) with massive tourist crowds.
+* **Winter (November-March)**: Cooler and wetter, but hotels are cheap and landmarks have no queues.
+
+*Note: I am currently running in Offline Demo Mode. For live, personalized travel recommendations from my AI core, please connect TravelVerse to the internet.*`;
+        } else if (activeTopic === 'Tokyo') {
+          answer = `### 🌸 Best Time to Visit Tokyo
+* **Spring (March-May)**: Famous cherry blossom season (Sakura). Beautiful mild weather, though prices and crowds peak in early April.
+* **Autumn (September-November)**: Staggering red maple leaf foliage (Koyo), clear skies, and comfortable hiking weather.
+* **Summer (June-August)**: Hot, humid, and rainy (rainy season in June), but great for summer festivals and fireworks.
+
+*Note: I am currently running in Offline Demo Mode. For live, personalized travel recommendations from my AI core, please connect TravelVerse to the internet.*`;
+        } else {
+          answer = `### 📅 Selecting the Right Travel Season
+* **Shoulder Season**: The absolute best value (spring or autumn). Offers lower prices, mild weather, and fewer crowds.
+* **High Season**: Perfect weather but peak prices and long lines. Requires booking flights and lodging months in advance.
+* **Low Season**: Great for budget travelers, but check for winter closures or rainy seasons depending on the destination.
+
+*Note: I am currently running in Offline Demo Mode. For live, personalized travel recommendations from my AI core, please connect TravelVerse to the internet.*`;
+        }
+      } else if (qLower.includes('food') || qLower.includes('eat') || qLower.includes('restaurant') || qLower.includes('dish')) {
+        if (activeTopic === 'Rome') {
+          answer = `### 🍝 Roman Food Specialties
+Rome is a paradise for food lovers:
+* **The Four Roman Pastas**: Try **Cacio e Pepe** (cheese and pepper), **Carbonara** (egg, guanciale, pecorino), **Amatriciana** (tomato, guanciale), and **Gricia**.
+* **Pizza al Taglio**: Pizza sold by weight. A perfect, quick street food lunch.
+* **Gelato**: Seek out artisanal gelaterias like *Frigidarium* or *Giolitti*. Avoid bright neon-colored mounds!
+
+*Note: I am currently running in Offline Demo Mode. For live, personalized travel recommendations from my AI core, please connect TravelVerse to the internet.*`;
+        } else if (activeTopic === 'Tokyo') {
+          answer = `### 🍣 Tokyo Culinary Highlights
+Tokyo is the culinary capital of the world with incredible variety:
+* **Ramen**: Visit **Ichiran Ramen Shibuya** or **Tsuta** for delicious tonkotsu or shoyu broth.
+* **Sushi**: Grab fresh sushi at the **Tsukiji Outer Market** early in the morning.
+* **Yakitori**: Head to **Omoide Yokocho** (Memory Lane) in Shinjuku for charcoal-grilled skewers under paper lanterns.
+
+*Note: I am currently running in Offline Demo Mode. For live, personalized travel recommendations from my AI core, please connect TravelVerse to the internet.*`;
+        } else {
+          answer = `### 🍽️ Culinary Travel Guidelines
+* **Follow the Locals**: Look for busy restaurants 2-3 blocks away from main tourist spots.
+* **Street Food**: Try local street food night markets (e.g. in Bangkok or Taipei) for the most authentic and cheap dining.
+* **Reservations**: For highly rated bistros, book table reservations at least 1-2 weeks in view.
+
+*Note: I am currently running in Offline Demo Mode. For live, personalized travel recommendations from my AI core, please connect TravelVerse to the internet.*`;
+        }
+      } else if (qLower.includes('currency') || qLower.includes('money') || qLower.includes('cost') || qLower.includes('price')) {
+        answer = `### 💵 Travel Currency & Money Guidelines
+Keep these money tips in mind for a smooth journey:
+* **Carry Some Local Cash**: While cards are widely accepted worldwide, small shops, street markets, and public transit terminals often require physical cash (especially in parts of Germany, Japan, and Italy).
+* **Avoid Airport Currency Desks**: They offer some of the worst exchange rates. Use local bank ATMs at your destination instead for fairer rates.
+* **Credit Card Fees**: Make sure you use a card with zero foreign transaction fees to save on every tap. Always select payment in local currency (rather than home currency) if asked on ATM/POS machines.
+
+*Note: I am currently running in Offline Demo Mode. For live, personalized travel recommendations from my AI core, please connect TravelVerse to the internet.*`;
+      } else if (qLower.includes('visa') || qLower.includes('passport')) {
+        answer = `### 🛂 Passport & Visa Requirements
+Preparing travel documentation is crucial:
+* **6-Month Passport Rule**: Many countries require your passport to be valid for at least 6 months beyond your entry or planned departure date.
+* **Visa Checks**: Always double-check visa requirements for your nationality via the official embassy portal of your destination country.
+* **Digital Backups**: Email scanned copies of your passport page, visa, and insurance policy to yourself so they are accessible on any device.
+
+*Note: I am currently running in Offline Demo Mode. For live, personalized travel recommendations from my AI core, please connect TravelVerse to the internet.*`;
+      } else if (qLower.includes('packing') || qLower.includes('pack') || qLower.includes('luggage') || qLower.includes('baggage')) {
+        answer = `### 🧳 Smart Packing Checklist
+A light load makes traveling significantly easier:
+* **Universal Adapter**: Pack a multi-plug universal travel adapter that supports multiple USB ports.
+* **Versatile Layers**: Pack clothing items that can easily be mixed and matched. Layering is key for changing weather.
+* **Footwear**: Bring one pair of worn-in, comfortable walking sneakers. Active travel easily tops 15,000 steps a day.
+* **Personal Medicine & Toiletries**: Carry prescription drugs and a small basic first-aid kit in your carry-on bag.
+
+*Note: I am currently running in Offline Demo Mode. For live, personalized travel recommendations from my AI core, please connect TravelVerse to the internet.*`;
+      } else if (activeTopic) {
+        answer = `### ✈️ Exploring ${activeTopic}
+You are asking about **${activeTopic}**. Here are some helpful highlights:
+* **Top Attraction**: Visit the historic landmarks. In Rome, see the *Colosseum*. In Tokyo, explore *Shibuya Crossing*.
+* **Local Etiquette**:
+  * In Italy, cover shoulders when entering churches; do not order cappuccino after 11 AM.
+  * In Japan, do not tip; stand on the left side of escalators; keep voice low on public transit.
+  
+*Note: I am currently running in Offline Demo Mode. For live, personalized travel recommendations from my AI core, please connect TravelVerse to the internet.*`;
       }
 
       return res.json({ answer, isMock: true });
@@ -211,18 +394,40 @@ export async function askAssistant(req: AuthRequest, res: Response) {
     const genAI = new GoogleGenerativeAI(apiKey);
     const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
 
-    const systemPrompt = `You are TravelVerse's AI Travel Assistant, a highly helpful, charismatic, and knowledgeable global travel concierge. 
-    Answer the user's travel question clearly, structuring your response with beautiful Markdown headings and bullet points. 
+    // Build system instruction
+    const systemInstruction = `You are TravelVerse's AI Travel Assistant, a highly helpful, charismatic, and knowledgeable global travel concierge. 
+    Answer the user's travel question clearly, structuring your response with beautiful Markdown headings, bullet points, and bold text. 
     Keep your recommendations practical, addressing safety tips, food, culture, transit, or packing where relevant.
     
-    Context about current travel: ${context || 'General travel help'}`;
+    Current Travel Context: ${context || 'General travel help'}`;
 
-    const result = await model.generateContent({
-      contents: [
-        { role: 'user', parts: [{ text: `${systemPrompt}\n\nUser Question: ${question}` }] }
-      ]
+    // Format chat history for Gemini SDK (strictly alternating starting with user)
+    const formattedHistory: any[] = [];
+    if (Array.isArray(history) && history.length > 0) {
+      const firstUserIdx = history.findIndex(h => h.sender === 'user');
+      // Exclude the last message since it represents the current question
+      const historyToFormat = firstUserIdx !== -1 ? history.slice(firstUserIdx, -1) : [];
+
+      let lastRole: 'user' | 'model' | null = null;
+      historyToFormat.forEach((msg) => {
+        const role = msg.sender === 'user' ? 'user' : 'model';
+        if (role !== lastRole) {
+          formattedHistory.push({
+            role,
+            parts: [{ text: msg.text }]
+          });
+          lastRole = role;
+        }
+      });
+    }
+
+    // Build and send to chat session
+    const chat = model.startChat({
+      history: formattedHistory,
+      systemInstruction: systemInstruction,
     });
 
+    const result = await chat.sendMessage(question);
     res.json({ answer: result.response.text(), isMock: false });
   } catch (err: any) {
     console.error('Gemini assistant error:', err.message || err);

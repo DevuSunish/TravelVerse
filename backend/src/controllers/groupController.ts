@@ -1,10 +1,14 @@
 import { Response } from 'express';
 import { query } from '../config/db';
 import { AuthRequest } from '../middleware/auth';
+import { createNotification, notifyGroupMembers } from '../services/notificationService';
 
 export async function createGroup(req: AuthRequest, res: Response) {
   try {
     const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
     const { name, description } = req.body;
 
     if (!name) {
@@ -34,6 +38,9 @@ export async function createGroup(req: AuthRequest, res: Response) {
 export async function getGroups(req: AuthRequest, res: Response) {
   try {
     const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
 
     // Get active groups
     const activeGroups = await query(
@@ -65,6 +72,9 @@ export async function getGroups(req: AuthRequest, res: Response) {
 export async function inviteMember(req: AuthRequest, res: Response) {
   try {
     const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
     const { groupId, usernameToInvite } = req.body;
 
     // Verify current user is admin/member of group
@@ -99,10 +109,24 @@ export async function inviteMember(req: AuthRequest, res: Response) {
     );
 
     // Create a notification for the invited user
-    await query(
-      'INSERT INTO notifications (user_id, type, content) VALUES ($1, $2, $3)',
-      [inviteeId, 'group_invite', `You have been invited to join the travel group by ${req.user?.username}.`]
-    );
+    const inviter = await query('SELECT username, profile_picture FROM users WHERE id = $1', [userId]);
+    const inviterUsername = inviter[0]?.username || req.user?.username;
+    const inviterPic = inviter[0]?.profile_picture || '';
+    const group = await query('SELECT name FROM travel_groups WHERE id = $1', [groupId]);
+    const groupName = group[0]?.name || 'a travel group';
+
+    const content = {
+      message: `${inviterUsername} invited you to join the travel group "${groupName}".`,
+      sender_id: userId,
+      sender_username: inviterUsername,
+      sender_profile_picture: inviterPic,
+      group_id: groupId,
+      group_name: groupName,
+      inviter_id: userId,
+      inviter_username: inviterUsername
+    };
+
+    await createNotification(inviteeId, 'group_invite', content);
 
     res.json({ message: 'Invitation sent successfully' });
   } catch (err: any) {
@@ -114,6 +138,9 @@ export async function inviteMember(req: AuthRequest, res: Response) {
 export async function respondToInvitation(req: AuthRequest, res: Response) {
   try {
     const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
     const { groupId, accept } = req.body; // boolean
 
     const status = accept ? 'accepted' : 'declined';
@@ -126,16 +153,77 @@ export async function respondToInvitation(req: AuthRequest, res: Response) {
       return res.status(404).json({ message: 'No pending invitation found for this group' });
     }
 
+    // Find the invitation notification to get the inviter_id and mark it as read
+    let inviterId: number | null = null;
+    let groupName = 'a travel group';
+    try {
+      const inviteNotif = await query(
+        `SELECT id, content FROM notifications WHERE user_id = $1 AND type = 'group_invite' AND content LIKE $2 ORDER BY created_at DESC LIMIT 1`,
+        [userId, `%"group_id":${groupId}%`]
+      );
+      if (inviteNotif.length > 0) {
+        const notifData = JSON.parse(inviteNotif[0].content);
+        inviterId = notifData.inviter_id || notifData.sender_id;
+        groupName = notifData.group_name || 'a travel group';
+        await query('UPDATE notifications SET is_read = TRUE WHERE id = $1', [inviteNotif[0].id]);
+      }
+    } catch (e) {
+      console.warn('Could not retrieve inviter from notification:', e);
+    }
+
+    if (!inviterId) {
+      const groupOwner = await query('SELECT user_id FROM group_members WHERE group_id = $1 AND role = \'admin\' LIMIT 1', [groupId]);
+      if (groupOwner.length > 0) {
+        inviterId = groupOwner[0].user_id;
+      }
+    }
+
+    const responder = await query('SELECT username, profile_picture FROM users WHERE id = $1', [userId]);
+    const responderUsername = responder[0]?.username || req.user?.username;
+    const responderPic = responder[0]?.profile_picture || '';
+
     if (accept) {
       await query(
         'UPDATE group_members SET status = \'accepted\' WHERE group_id = $1 AND user_id = $2',
         [groupId, userId]
+      );
+
+      // Trigger accept notification to inviter
+      if (inviterId && inviterId !== userId) {
+        await createNotification(inviterId, 'group_accept', {
+          message: `${responderUsername} accepted your invitation to join "${groupName}".`,
+          sender_id: userId,
+          sender_username: responderUsername,
+          sender_profile_picture: responderPic,
+          group_id: groupId,
+          group_name: groupName
+        });
+      }
+
+      // Also trigger a notification to other existing group members that a new member joined
+      await notifyGroupMembers(
+        groupId,
+        userId,
+        `${responderUsername} joined the travel group "${groupName}".`,
+        { action: 'join' }
       );
     } else {
       await query(
         'DELETE FROM group_members WHERE group_id = $1 AND user_id = $2',
         [groupId, userId]
       );
+
+      // Trigger decline notification to inviter
+      if (inviterId && inviterId !== userId) {
+        await createNotification(inviterId, 'group_decline', {
+          message: `${responderUsername} declined your invitation to join "${groupName}".`,
+          sender_id: userId,
+          sender_username: responderUsername,
+          sender_profile_picture: responderPic,
+          group_id: groupId,
+          group_name: groupName
+        });
+      }
     }
 
     res.json({ message: `Invitation ${status} successfully` });
@@ -148,6 +236,9 @@ export async function respondToInvitation(req: AuthRequest, res: Response) {
 export async function getGroupDetails(req: AuthRequest, res: Response) {
   try {
     const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
     const { id } = req.params;
 
     // Verify membership
@@ -209,7 +300,32 @@ export async function getGroupDetails(req: AuthRequest, res: Response) {
 export async function voteOnActivity(req: AuthRequest, res: Response) {
   try {
     const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
     const { activityId } = req.body;
+
+    // Verify membership / ownership
+    const activityInfo = await query('SELECT group_id, trip_id FROM activities WHERE id = $1', [activityId]);
+    if (activityInfo.length === 0) {
+      return res.status(404).json({ message: 'Activity not found' });
+    }
+    const { group_id: groupId, trip_id: tripId } = activityInfo[0];
+
+    if (groupId) {
+      const membership = await query(
+        'SELECT 1 FROM group_members WHERE group_id = $1 AND user_id = $2 AND status = \'accepted\'',
+        [groupId, userId]
+      );
+      if (membership.length === 0) {
+        return res.status(403).json({ message: 'Unauthorized to vote on this activity' });
+      }
+    } else if (tripId) {
+      const tripCheck = await query('SELECT 1 FROM trips WHERE id = $1 AND user_id = $2', [tripId, userId]);
+      if (tripCheck.length === 0) {
+        return res.status(403).json({ message: 'Unauthorized to vote on this activity' });
+      }
+    }
 
     // Increment votes
     const updated = await query(
@@ -217,8 +333,15 @@ export async function voteOnActivity(req: AuthRequest, res: Response) {
       [activityId]
     );
 
-    if (updated.length === 0) {
-      return res.status(404).json({ message: 'Activity not found' });
+    if (groupId) {
+      const user = await query('SELECT username FROM users WHERE id = $1', [userId]);
+      const username = user[0]?.username || 'A traveler';
+      notifyGroupMembers(
+        groupId,
+        userId,
+        `${username} voted on activity "${updated[0].title}".`,
+        { activity_id: activityId, activity_title: updated[0].title }
+      ).catch(e => console.error('Failed to notify group members:', e.message));
     }
 
     res.json({ activity: updated[0] });
@@ -231,6 +354,9 @@ export async function voteOnActivity(req: AuthRequest, res: Response) {
 export async function createGroupItinerary(req: AuthRequest, res: Response) {
   try {
     const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
     const { groupId, day_number, date, notes } = req.body;
 
     // Check membership
@@ -256,6 +382,15 @@ export async function createGroupItinerary(req: AuthRequest, res: Response) {
       );
     }
 
+    const user = await query('SELECT username FROM users WHERE id = $1', [userId]);
+    const username = user[0]?.username || 'A traveler';
+    notifyGroupMembers(
+      groupId,
+      userId,
+      `${username} updated the itinerary for Day ${day_number}.`,
+      { day_number }
+    ).catch(e => console.error('Failed to notify group members:', e.message));
+
     res.json({ itinerary: itinerary[0] });
   } catch (err: any) {
     console.error('Create group itinerary error:', err.message);
@@ -266,6 +401,9 @@ export async function createGroupItinerary(req: AuthRequest, res: Response) {
 export async function createGroupActivity(req: AuthRequest, res: Response) {
   try {
     const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
     const { groupId, title, description, start_time, end_time, cost } = req.body;
 
     const membership = await query(
@@ -281,6 +419,15 @@ export async function createGroupActivity(req: AuthRequest, res: Response) {
        VALUES ($1, $2, $3, $4, $5, $6, 0) RETURNING *`,
       [groupId, title, description || '', start_time || null, end_time || null, cost || 0.00]
     );
+
+    const user = await query('SELECT username FROM users WHERE id = $1', [userId]);
+    const username = user[0]?.username || 'A traveler';
+    notifyGroupMembers(
+      groupId,
+      userId,
+      `${username} proposed a new activity "${activity[0].title}".`,
+      { activity_id: activity[0].id, activity_title: activity[0].title }
+    ).catch(e => console.error('Failed to notify group members:', e.message));
 
     res.status(201).json({ activity: activity[0] });
   } catch (err: any) {

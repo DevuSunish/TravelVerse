@@ -15,7 +15,8 @@ import { addExpense, getExpenses, deleteExpense } from '../controllers/expenseCo
 import { 
   createRecommendation, getRecommendations, toggleLike, addComment, getComments, 
   followUser, unfollowUser, getActivityFeed, searchEverything, getWishlist, 
-  addToWishlist, removeFromWishlist, getNotifications, markNotificationRead 
+  addToWishlist, removeFromWishlist, getNotifications, markNotificationRead,
+  markAllNotificationsRead, deleteNotification, deleteAllNotifications
 } from '../controllers/socialController';
 import { generateItinerary, askAssistant } from '../controllers/aiController';
 
@@ -67,7 +68,10 @@ router.get('/social/wishlist', authMiddleware, getWishlist);
 router.post('/social/wishlist', authMiddleware, addToWishlist);
 router.delete('/social/wishlist/:id', authMiddleware, removeFromWishlist);
 router.get('/social/notifications', authMiddleware, getNotifications);
+router.put('/social/notifications/read-all', authMiddleware, markAllNotificationsRead);
 router.put('/social/notifications/:id', authMiddleware, markNotificationRead);
+router.delete('/social/notifications/:id', authMiddleware, deleteNotification);
+router.delete('/social/notifications', authMiddleware, deleteAllNotifications);
 
 // --- AI FEATURES ROUTES ---
 router.post('/ai/itinerary', authMiddleware, generateItinerary);

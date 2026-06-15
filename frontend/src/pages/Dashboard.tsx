@@ -5,16 +5,74 @@ import { apiRequest } from '../services/api';
 import { InteractiveMap } from '../components/InteractiveMap';
 import { RecommendationCard, Recommendation } from '../components/RecommendationCard';
 import { 
-  Globe, Plane, ShieldAlert, Award, Calendar, Compass, 
-  MapPin, Heart, MessageSquare, Plus, PlusCircle, CheckCircle2, ListTodo, X
+  Globe, Plane, Award, Calendar, Compass, 
+  MapPin, Heart, MessageSquare, Plus, CheckCircle2, ListTodo, X
 } from 'lucide-react';
+
+interface ProfileStats {
+  countries_visited_count: number;
+  trips_completed_count: number;
+  travel_percentage: string | number;
+  followers_count: number;
+  following_count: number;
+}
+
+interface Badge {
+  id: string;
+  name: string;
+  description: string;
+  icon: string;
+  color: string;
+}
+
+interface Profile {
+  stats: ProfileStats;
+  badges: Badge[];
+}
+
+interface CountryFootprint {
+  country_code: string;
+  status: 'visited' | 'planned' | 'wishlist';
+}
+
+interface UpcomingTrip {
+  id: number;
+  title: string;
+  city?: string;
+  country: string;
+  start_date: string;
+}
+
+interface FeedItem {
+  id: number;
+  feed_type?: 'trip' | 'recommendation';
+  username: string;
+  profile_picture?: string;
+  cover_image?: string;
+  title?: string;
+  description?: string;
+  country?: string;
+  likes_count?: number;
+  comments_count?: number;
+  place_name?: string;
+  rating?: number;
+  review?: string;
+  tips?: string;
+  estimated_cost?: number;
+  how_to_reach?: string;
+  best_time_to_visit?: string;
+  photos?: string;
+  is_liked?: boolean;
+  created_at?: string;
+  category?: string;
+}
 
 export const Dashboard: React.FC = () => {
   const { user } = useAuth();
-  const [profile, setProfile] = useState<any>(null);
-  const [feed, setFeed] = useState<any[]>([]);
-  const [countries, setCountries] = useState<any[]>([]);
-  const [upcomingTrip, setUpcomingTrip] = useState<any>(null);
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const [feed, setFeed] = useState<FeedItem[]>([]);
+  const [countries, setCountries] = useState<CountryFootprint[]>([]);
+  const [upcomingTrip, setUpcomingTrip] = useState<UpcomingTrip | null>(null);
   const [daysRemaining, setDaysRemaining] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -39,7 +97,7 @@ export const Dashboard: React.FC = () => {
         const resCountries = await apiRequest('/social/wishlist');
         const wishlistItems = resCountries.wishlist || [];
         
-        const mapList: any[] = [];
+        const mapList: CountryFootprint[] = [];
         const addedCodes = new Set<string>();
 
         // Fetch countries_visited directly from API
@@ -49,7 +107,7 @@ export const Dashboard: React.FC = () => {
         // Let's write a simple helper: we fetch trips (which logs countries) and wishlist countries.
         // Also we can fetch follows and profile to sync.
         const trips = countriesData.trips || [];
-        trips.forEach((t: any) => {
+        trips.forEach((t: { country: string; status: string; id: number; start_date?: string }) => {
           const code = t.country.substring(0, 3).toUpperCase(); // Simple code mapping
           if (!addedCodes.has(code)) {
             addedCodes.add(code);
@@ -60,7 +118,7 @@ export const Dashboard: React.FC = () => {
           }
         });
 
-        wishlistItems.forEach((w: any) => {
+        wishlistItems.forEach((w: { type: string; name: string }) => {
           if (w.type === 'country') {
             const code = w.name.substring(0, 3).toUpperCase();
             if (!addedCodes.has(code)) {
@@ -88,14 +146,14 @@ export const Dashboard: React.FC = () => {
         setCountries(mapList);
 
         // 4. Find closest upcoming trip
-        const upcomingTrips = trips.filter((t: any) => t.status === 'planned' && t.start_date);
+        const upcomingTrips = trips.filter((t: { status: string; start_date?: string }) => t.status === 'planned' && t.start_date);
         if (upcomingTrips.length > 0) {
           // Sort by start date ascending
-          upcomingTrips.sort((a: any, b: any) => new Date(a.start_date).getTime() - new Date(b.start_date).getTime());
+          upcomingTrips.sort((a: { start_date?: string }, b: { start_date?: string }) => new Date(a.start_date || '').getTime() - new Date(b.start_date || '').getTime());
           const nextTrip = upcomingTrips[0];
           setUpcomingTrip(nextTrip);
 
-          const timeDiff = new Date(nextTrip.start_date).getTime() - new Date().getTime();
+          const timeDiff = new Date(nextTrip.start_date || '').getTime() - new Date().getTime();
           const days = Math.ceil(timeDiff / (1000 * 3600 * 24));
           setDaysRemaining(days >= 0 ? days : 0);
         }
@@ -301,7 +359,7 @@ export const Dashboard: React.FC = () => {
                 <p className="text-xs text-slate-400 mt-1">Try following other travelers or share your first travel recommendation!</p>
               </div>
             ) : (
-              feed.map((item: any) => {
+              feed.map((item) => {
                 // If it is a trip feed item
                 if (item.feed_type === 'trip') {
                   return (
@@ -352,7 +410,7 @@ export const Dashboard: React.FC = () => {
                 return (
                   <RecommendationCard 
                     key={`rec-${item.id}`} 
-                    rec={item} 
+                    rec={item as unknown as Recommendation} 
                   />
                 );
               })

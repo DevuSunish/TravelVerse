@@ -2,19 +2,51 @@ import React, { useState, useEffect } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { apiRequest } from '../services/api';
-import { TripCard } from '../components/TripCard';
+import { TripCard, Trip } from '../components/TripCard';
 import { 
   Globe, Compass, Award, MapPin, UserPlus, UserMinus, 
   Map, CheckSquare, Square, ChevronRight 
 } from 'lucide-react';
+
+interface ProfileStats {
+  countries_visited_count: number;
+  trips_completed_count: number;
+  travel_percentage: string | number;
+  followers_count: number;
+  following_count: number;
+}
+
+interface Badge {
+  id: string;
+  name: string;
+  description: string;
+  icon: string;
+  color: string;
+}
+
+interface Profile {
+  id: number;
+  username: string;
+  email: string;
+  bio?: string;
+  home_country?: string;
+  profile_picture?: string;
+  is_following: boolean;
+  stats: ProfileStats;
+  badges: Badge[];
+}
+
+interface ProfileTrip extends Trip {
+  user_id: number;
+}
 
 export const ProfilePage: React.FC = () => {
   const { user: currentUser } = useAuth();
   const [searchParams] = useSearchParams();
   const usernameParam = searchParams.get('username') || currentUser?.username;
 
-  const [profile, setProfile] = useState<any>(null);
-  const [trips, setTrips] = useState<any[]>([]);
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const [trips, setTrips] = useState<ProfileTrip[]>([]);
   const [loading, setLoading] = useState(true);
   const [isFollowing, setIsFollowing] = useState(false);
 
@@ -53,13 +85,13 @@ export const ProfilePage: React.FC = () => {
         const tripsData = await apiRequest(`/trips`);
         // Filter trips belonging to this profile's user
         const targetUserId = profileData.profile.id;
-        const filteredTrips = (tripsData.trips || []).filter((t: any) => t.user_id === targetUserId);
+        const filteredTrips = (tripsData.trips || []).filter((t: ProfileTrip) => t.user_id === targetUserId);
         setTrips(filteredTrips);
 
         // Set checked off country codes
         // Fetch user countries visited status
         // Simply pull them from user trips in this profile view
-        const codes = filteredTrips.filter((t: any) => t.status === 'past').map((t: any) => t.country.substring(0, 3).toUpperCase());
+        const codes = filteredTrips.filter((t: ProfileTrip) => t.status === 'past').map((t: ProfileTrip) => t.country.substring(0, 3).toUpperCase());
         setUserVisitedCodes(Array.from(new Set(codes)));
       } catch (err) {
         console.error('Failed to load profile:', err);
@@ -82,16 +114,34 @@ export const ProfilePage: React.FC = () => {
           method: 'POST',
           body: { userIdToUnfollow: profile.id }
         });
-        profile.stats.followers_count = Math.max(0, profile.stats.followers_count - 1);
+        setProfile(prev => {
+          if (!prev) return null;
+          return {
+            ...prev,
+            stats: {
+              ...prev.stats,
+              followers_count: Math.max(0, prev.stats.followers_count - 1)
+            }
+          };
+        });
       } else {
         // Follow
         await apiRequest('/social/follow', {
           method: 'POST',
           body: { userIdToFollow: profile.id }
         });
-        profile.stats.followers_count = profile.stats.followers_count + 1;
+        setProfile(prev => {
+          if (!prev) return null;
+          return {
+            ...prev,
+            stats: {
+              ...prev.stats,
+              followers_count: prev.stats.followers_count + 1
+            }
+          };
+        });
       }
-    } catch (err) {
+    } catch {
       // Revert state
       setIsFollowing(profile.is_following);
     }
@@ -247,7 +297,7 @@ export const ProfilePage: React.FC = () => {
               Achievements
             </h3>
             <div className="grid grid-cols-1 gap-3.5">
-              {profile.badges.map((badge: any) => (
+              {profile.badges.map((badge) => (
                 <div key={badge.id} className="flex items-center gap-3 p-3 rounded-xl bg-slate-50 dark:bg-slate-800/40">
                   <div className={`p-2.5 rounded-xl shrink-0 ${badge.color || 'bg-slate-100 text-slate-600'}`}>
                     <Globe className="h-5.5 w-5.5" />

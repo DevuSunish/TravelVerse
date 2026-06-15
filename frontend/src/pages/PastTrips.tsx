@@ -4,20 +4,29 @@ import { apiRequest } from '../services/api';
 import { TripCard, Trip } from '../components/TripCard';
 import { LeafletMap } from '../components/LeafletMap';
 import { 
-  Plus, Calendar, MapPin, Grid, List, Map, 
-  Image as ImageIcon, DollarSign, X, Check, FileText, Compass
+  Plus, Grid, List, Map, 
+  X, Check, Compass
 } from 'lucide-react';
 
 export const PastTrips: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
-  const initialAction = searchParams.get('action') === 'new';
 
   const [trips, setTrips] = useState<Trip[]>([]);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<'timeline' | 'gallery' | 'map'>('timeline');
 
-  // Form states
-  const [showForm, setShowForm] = useState(initialAction);
+  // Form states (derived from URL query parameters)
+  const showForm = searchParams.get('action') === 'new';
+  const setShowForm = (val: boolean) => {
+    const newParams = new URLSearchParams(searchParams);
+    if (val) {
+      newParams.set('action', 'new');
+    } else {
+      newParams.delete('action');
+    }
+    setSearchParams(newParams, { replace: true });
+  };
+
   const [title, setTitle] = useState('');
   const [country, setCountry] = useState('');
   const [city, setCity] = useState('');
@@ -43,22 +52,12 @@ export const PastTrips: React.FC = () => {
   };
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchTrips();
   }, []);
 
-  // Update showForm state if query parameter changes
-  useEffect(() => {
-    if (searchParams.get('action') === 'new') {
-      setShowForm(true);
-    }
-  }, [searchParams]);
-
   const handleCloseForm = () => {
     setShowForm(false);
-    // remove action query param
-    const newParams = new URLSearchParams(searchParams);
-    newParams.delete('action');
-    setSearchParams(newParams);
   };
 
   const handleCreateTrip = async (e: React.FormEvent) => {
@@ -104,8 +103,9 @@ export const PastTrips: React.FC = () => {
         handleCloseForm();
         fetchTrips();
       }
-    } catch (err: any) {
-      setError(err.message || 'Failed to log trip. Please check details.');
+    } catch (err: unknown) {
+      const errorObject = err as { message?: string };
+      setError(errorObject.message || 'Failed to log trip. Please check details.');
     } finally {
       setSubmitting(false);
     }
@@ -119,6 +119,17 @@ export const PastTrips: React.FC = () => {
     } catch (err) {
       console.error('Failed to delete trip:', err);
     }
+  };
+
+  // Hash function to get deterministic coordinates for map view (React purity rule)
+  const getDeterministicCoords = (name: string) => {
+    let hash = 0;
+    for (let i = 0; i < name.length; i++) {
+      hash = name.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    const lat = 30 + (Math.abs(hash) % 20);
+    const lng = -30 + (Math.abs(hash >> 8) % 60);
+    return { lat, lng };
   };
 
   // Compile coordinates list for Leaflet view
@@ -142,7 +153,7 @@ export const PastTrips: React.FC = () => {
       };
 
       const code = t.country.substring(0, 3).toUpperCase();
-      const coord = locationsCenter[code] || { lat: 30 + Math.random() * 20, lng: -30 + Math.random() * 60 };
+      const coord = locationsCenter[code] || getDeterministicCoords(t.country);
       
       return {
         id: t.id,
@@ -157,7 +168,7 @@ export const PastTrips: React.FC = () => {
   const galleryPhotos: { id: number, tripId: number, url: string, caption: string, title: string }[] = [];
   trips.forEach((t) => {
     if (t.photos && t.photos.length > 0) {
-      t.photos.forEach((ph: any) => {
+      t.photos.forEach((ph: { id: number; photo_url: string; caption?: string }) => {
         galleryPhotos.push({
           id: ph.id,
           tripId: t.id,
@@ -169,7 +180,7 @@ export const PastTrips: React.FC = () => {
     } else if (t.status === 'past') {
       // Fallback: use cover image as gallery item
       galleryPhotos.push({
-        id: Math.random(),
+        id: t.id,
         tripId: t.id,
         url: t.cover_image,
         caption: t.city ? `${t.city}, ${t.country}` : t.country,
@@ -324,7 +335,7 @@ export const PastTrips: React.FC = () => {
                   <label className="text-[10px] uppercase font-bold text-slate-500">Trip Status</label>
                   <select
                     value={status}
-                    onChange={(e) => setStatus(e.target.value as any)}
+                    onChange={(e) => setStatus(e.target.value as 'past' | 'planned' | 'wishlist')}
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs dark:bg-slate-950 dark:border-slate-850 dark:text-white"
                   >
                     <option value="past">Completed Trip (Past)</option>

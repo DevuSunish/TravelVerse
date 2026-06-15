@@ -9,18 +9,17 @@ export const AuthPage: React.FC = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   
-  const [isRegister, setIsRegister] = useState(searchParams.get('tab') === 'register');
+  const isRegister = searchParams.get('tab') === 'register';
+  const setIsRegister = (val: boolean) => {
+    navigate(val ? '?tab=register' : '?tab=login', { replace: true });
+  };
+
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [homeCountry, setHomeCountry] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-
-  // Sync isRegister tab from query param changes
-  useEffect(() => {
-    setIsRegister(searchParams.get('tab') === 'register');
-  }, [searchParams]);
 
   // If already logged in, redirect to dashboard
   useEffect(() => {
@@ -58,8 +57,9 @@ export const AuthPage: React.FC = () => {
         login(data.token, data.user);
         navigate('/');
       }
-    } catch (err: any) {
-      setError(err.message || 'Authentication failed. Please check your credentials.');
+    } catch (err: unknown) {
+      const errorObject = err as { message?: string };
+      setError(errorObject.message || 'Authentication failed. Please check your credentials.');
     } finally {
       setLoading(false);
     }

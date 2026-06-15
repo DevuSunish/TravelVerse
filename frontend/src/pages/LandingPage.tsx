@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Compass, MapPin, Sparkles, Share2, DollarSign, Globe, ArrowRight } from 'lucide-react';
+import { Compass, Sparkles, Share2, DollarSign, Globe, ArrowRight } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 export const LandingPage: React.FC = () => {

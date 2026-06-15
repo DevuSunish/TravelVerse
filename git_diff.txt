@@ -1,0 +1,2237 @@
+diff --git a/backend/dist/controllers/aiController.js b/backend/dist/controllers/aiController.js
+index e5741c0..434e25c 100644
+--- a/backend/dist/controllers/aiController.js
++++ b/backend/dist/controllers/aiController.js
+@@ -171,40 +171,268 @@ async function generateItinerary(req, res) {
+ }
+ async function askAssistant(req, res) {
+     try {
+-        const { question, context } = req.body; // context is optional (e.g. past history or destination)
++        const { question, context, history } = req.body; // history is an array of previous messages
+         if (!question) {
+             return res.status(400).json({ message: 'Question is required' });
+         }
+         const apiKey = process.env.GEMINI_API_KEY;
++        // Check if the query is travel-related
++        const travelKeywords = [
++            'travel', 'trip', 'visit', 'flight', 'hotel', 'map', 'packing', 'custom',
++            'safety', 'safe', 'budget', 'food', 'eat', 'restaurant', 'weather', 'season',
++            'passport', 'visa', 'transit', 'train', 'bus', 'metro', 'airport', 'ticket',
++            'luggage', 'baggage', 'explore', 'guide', 'attraction', 'currency', 'money',
++            'cost', 'price', 'booking', 'insurance', 'rome', 'italy', 'tokyo', 'japan',
++            'paris', 'france', 'london', 'uk', 'united kingdom'
++        ];
++        const qLower = question.toLowerCase();
++        const isTravelRelated = travelKeywords.some(keyword => qLower.includes(keyword));
++        if (!isTravelRelated) {
++            return res.json({
++                answer: `I am your TravelVerse Concierge, specialized in global travel planning, local insights, safety guidelines, and culinary recommendations. How can I help you with your next adventure?`,
++                isMock: true
++            });
++        }
+         if (!apiKey) {
+             console.warn('GEMINI_API_KEY not found. Returning helpful template-based travel assistant response.');
+-            // Let's generate a smart mock answer based on keywords in the question
+-            const q = question.toLowerCase();
+-            let answer = `That is an excellent travel question! Without a live Gemini connection, here are some general tips: \n\n1. **Always plan transit in advance**: Research regional rail passes or subway cards to save up to 40%.\n2. **Safety First**: Make copies of your passport, and store digital copies securely in your email.\n3. **Local Cuisine**: Look for restaurants filled with locals, typically 2-3 blocks away from main tourist spots.\n\nPlease enter your GEMINI_API_KEY in the backend .env file to enable custom, fully intelligent real-time travel AI advice!`;
+-            if (q.includes('safety') || q.includes('safe')) {
+-                answer = `When traveling, safety is paramount. Here are key guidelines:\n\n- **Stay Alert in Crowds**: Pickpocketing is common in major hubs like train stations and landmarks.\n- **Travel Insurance**: Get comprehensive coverage including health and cancellation protection.\n- **Emergency Numbers**: Save local police/medical numbers (e.g., 112 in EU, 911 in US) and your embassy coordinates.\n- **Night Transit**: Prefer registered taxi services (or apps like Uber/Grab) over walking alone at night in unfamiliar neighborhoods.`;
++            // Determine the active topic from current question or conversation history
++            let activeTopic = '';
++            if (qLower.includes('rome') || qLower.includes('italy'))
++                activeTopic = 'Rome';
++            else if (qLower.includes('tokyo') || qLower.includes('japan'))
++                activeTopic = 'Tokyo';
++            else if (qLower.includes('paris') || qLower.includes('france'))
++                activeTopic = 'Paris';
++            else if (qLower.includes('london') || qLower.includes('uk') || qLower.includes('united kingdom'))
++                activeTopic = 'London';
++            // If not in current question, look back at history
++            if (!activeTopic && Array.isArray(history)) {
++                for (let i = history.length - 1; i >= 0; i--) {
++                    const txt = history[i].text?.toLowerCase() || '';
++                    if (txt.includes('rome') || txt.includes('italy')) {
++                        activeTopic = 'Rome';
++                        break;
++                    }
++                    if (txt.includes('tokyo') || txt.includes('japan')) {
++                        activeTopic = 'Tokyo';
++                        break;
++                    }
++                    if (txt.includes('paris') || txt.includes('france')) {
++                        activeTopic = 'Paris';
++                        break;
++                    }
++                    if (txt.includes('london') || txt.includes('uk') || txt.includes('united kingdom')) {
++                        activeTopic = 'London';
++                        break;
++                    }
++                }
+             }
+-            else if (q.includes('transport') || q.includes('bus') || q.includes('train') || q.includes('metro')) {
+-                answer = `Navigating a new city can be easy with these transportation guidelines:\n\n- **Transit Cards**: Cities like London (Oyster), Tokyo (Suica), and Paris (Navigo) offer integrated tap cards that work across subways, buses, and trains.\n- **High-Speed Rail**: If traveling between cities (e.g., Shinkansen in Japan, TGV in France), booking tickets 2-4 weeks in advance yields major savings.\n- **Walking Maps**: Download Google Maps or Maps.me offline data before leaving your hotel to navigate without roaming data.`;
++            // Default fallback responses
++            let answer = `### Global Travel Tips 🌍
++
++Here are some top travel tips from TravelVerse:
++* **Plan Transit in Advance**: Research regional rail passes or subway cards to save up to 40% on fares.
++* **Safety First**: Keep digital copies of your passport and visa stored securely in your cloud email.
++* **Eat Local**: Look for busy restaurants 2-3 blocks away from main tourist spots to find authentic, cheap food.
++
++*Note: I am currently running in Offline Demo Mode. For live, personalized travel recommendations from my AI core, please connect TravelVerse to the internet.*`;
++            if (qLower.includes('safety') || qLower.includes('safe')) {
++                if (activeTopic === 'Rome') {
++                    answer = `### 🔒 Safety in Rome, Italy
++When visiting Rome, keep these safety guidelines in mind:
++* **Watch out for Pickpockets**: Be extremely alert at crowded metro stations (Termini, Colosseo), Termini Station, and tourist spots like the Trevi Fountain.
++* **Bag Safety**: Keep bags zipped and hold them in front of you. Never leave your phone on the restaurant tables.
++* **Emergency Info**: The general European emergency number is **112**. Keep your embassy phone number handy.
++
++*Note: I am currently running in Offline Demo Mode. For live, personalized travel recommendations from my AI core, please connect TravelVerse to the internet.*`;
++                }
++                else if (activeTopic === 'Tokyo') {
++                    answer = `### 🔒 Safety in Tokyo, Japan
++Tokyo is consistently ranked as one of the safest cities in the world:
++* **Lost Items**: If you lose something in a metro station or taxi, check the local Koban (police box). Items are returned almost 95% of the time.
++* **Earthquake Prep**: Familiarize yourself with emergency exits at your hotel.
++* **Emergency Info**: Call **110** for police and **119** for ambulance/fire.
++
++*Note: I am currently running in Offline Demo Mode. For live, personalized travel recommendations from my AI core, please connect TravelVerse to the internet.*`;
++                }
++                else {
++                    answer = `### 🔒 Global Safety Guidelines
++When traveling, safety is paramount. Keep these guidelines in mind:
++* **Stay Alert in Crowds**: Pickpocketing is common in major transit hubs and landmarks.
++* **Travel Insurance**: Get comprehensive coverage including health and cancellation protection.
++* **Emergency Contacts**: Save local emergency numbers (e.g., 112 in EU, 911 in US) and your embassy coordinates.
++* **Night Transit**: Prefer registered taxi services or ride-hailing apps over walking alone in unfamiliar neighborhoods.
++
++*Note: I am currently running in Offline Demo Mode. For live, personalized travel recommendations from my AI core, please connect TravelVerse to the internet.*`;
++                }
+             }
+-            else if (q.includes('season') || q.includes('weather') || q.includes('when to visit') || q.includes('best time')) {
+-                answer = `Choosing the right travel season makes a huge difference:\n\n- **Shoulder Season**: The absolute best value (spring or autumn). Lower prices, milder weather, and fewer crowds.\n- **High Season (Summer/Holidays)**: Perfect weather but peak prices and long queues. Requires booking flights/lodging months in advance.\n- **Low Season**: Great for budget travel, but expect wetter/colder weather and some attractions to close early.`;
++            else if (qLower.includes('transport') || qLower.includes('bus') || qLower.includes('train') || qLower.includes('metro') || qLower.includes('airport') || qLower.includes('get there')) {
++                if (activeTopic === 'Rome') {
++                    answer = `### 🚇 Transit & Airport Guide for Rome
++Getting around Rome is easy once you know the routes:
++* **Airport Transfer**: Take the **Leonardo Express** train from Fiumicino Airport (FCO) directly to Termini Station. It takes 32 minutes and costs €14.
++* **Metro & Bus**: Rome has Metro lines A and B. Buy a single €1.50 ticket (valid for 100 minutes) or a 24h/48h pass. You must validate tickets before boarding buses.
++* **Walking**: Rome is best explored on foot. Wear comfortable sneakers!
++
++*Note: I am currently running in Offline Demo Mode. For live, personalized travel recommendations from my AI core, please connect TravelVerse to the internet.*`;
++                }
++                else if (activeTopic === 'Tokyo') {
++                    answer = `### 🚇 Transit & Airport Guide for Tokyo
++Tokyo has one of the world's most advanced transit networks:
++* **Airport Transfer**:
++  * **Narita (NRT)**: Use the **JR Narita Express (N'EX)** to Tokyo/Shibuya/Shinjuku (approx. 60 mins) or the **Keisei Skyliner** to Ueno.
++  * **Haneda (HND)**: Take the **Tokyo Monorail** or the **Keikyu Airport Line** (approx. 15-20 mins).
++* **IC Cards**: Purchase a digital **Suica** or **Pasmo** card for your phone. You can tap it to ride all trains, subway lines, and buses.
++* **Metro Passes**: Look into the Tokyo Subway Ticket (24h/48h/72h options) for unlimited rides on Tokyo Metro & Toei Subway.
++
++*Note: I am currently running in Offline Demo Mode. For live, personalized travel recommendations from my AI core, please connect TravelVerse to the internet.*`;
++                }
++                else if (activeTopic === 'Paris') {
++                    answer = `### 🚇 Transit & Airport Guide for Paris
++Paris has an excellent public transport system:
++* **Airport Transfer**: From Charles de Gaulle (CDG), take the **RER B** train directly to Gare du Nord or Châtelet (€11.80).
++* **Metro**: Paris has 14 metro lines. You can tap your phone or credit card on the Navigo Easy pass to ride.
++* **Train Pass**: If staying for a full calendar week, a Navigo Weekly Pass offers unlimited travel.
++
++*Note: I am currently running in Offline Demo Mode. For live, personalized travel recommendations from my AI core, please connect TravelVerse to the internet.*`;
++                }
++                else {
++                    answer = `### 🚇 Global Transportation Guidelines
++Navigating a new city can be simple with these guidelines:
++* **Transit Cards**: Use contactless payment or smartcards (like London's Oyster, Tokyo's Suica, Paris's Navigo) for discounted rates.
++* **High-Speed Rail**: Book tickets 2-4 weeks in advance for intercity routes (e.g. Shinkansen in Japan, TGV in France) to save up to 50%.
++* **Offline Maps**: Download Google Maps or Maps.me offline maps before leaving your hotel to navigate without cellular data.
++
++*Note: I am currently running in Offline Demo Mode. For live, personalized travel recommendations from my AI core, please connect TravelVerse to the internet.*`;
++                }
++            }
++            else if (qLower.includes('season') || qLower.includes('weather') || qLower.includes('when to visit') || qLower.includes('best time')) {
++                if (activeTopic === 'Rome') {
++                    answer = `### ☀️ Best Time to Visit Rome
++* **Shoulder Season (April-May & September-October)**: Mild weather, gorgeous sunsets, and moderate crowds. Perfect for sightseeing.
++* **Summer (June-August)**: Extremely hot (often over 35°C/95°F) with massive tourist crowds.
++* **Winter (November-March)**: Cooler and wetter, but hotels are cheap and landmarks have no queues.
++
++*Note: I am currently running in Offline Demo Mode. For live, personalized travel recommendations from my AI core, please connect TravelVerse to the internet.*`;
++                }
++                else if (activeTopic === 'Tokyo') {
++                    answer = `### 🌸 Best Time to Visit Tokyo
++* **Spring (March-May)**: Famous cherry blossom season (Sakura). Beautiful mild weather, though prices and crowds peak in early April.
++* **Autumn (September-November)**: Staggering red maple leaf foliage (Koyo), clear skies, and comfortable hiking weather.
++* **Summer (June-August)**: Hot, humid, and rainy (rainy season in June), but great for summer festivals and fireworks.
++
++*Note: I am currently running in Offline Demo Mode. For live, personalized travel recommendations from my AI core, please connect TravelVerse to the internet.*`;
++                }
++                else {
++                    answer = `### 📅 Selecting the Right Travel Season
++* **Shoulder Season**: The absolute best value (spring or autumn). Offers lower prices, mild weather, and fewer crowds.
++* **High Season**: Perfect weather but peak prices and long lines. Requires booking flights and lodging months in advance.
++* **Low Season**: Great for budget travelers, but check for winter closures or rainy seasons depending on the destination.
++
++*Note: I am currently running in Offline Demo Mode. For live, personalized travel recommendations from my AI core, please connect TravelVerse to the internet.*`;
++                }
++            }
++            else if (qLower.includes('food') || qLower.includes('eat') || qLower.includes('restaurant') || qLower.includes('dish')) {
++                if (activeTopic === 'Rome') {
++                    answer = `### 🍝 Roman Food Specialties
++Rome is a paradise for food lovers:
++* **The Four Roman Pastas**: Try **Cacio e Pepe** (cheese and pepper), **Carbonara** (egg, guanciale, pecorino), **Amatriciana** (tomato, guanciale), and **Gricia**.
++* **Pizza al Taglio**: Pizza sold by weight. A perfect, quick street food lunch.
++* **Gelato**: Seek out artisanal gelaterias like *Frigidarium* or *Giolitti*. Avoid bright neon-colored mounds!
++
++*Note: I am currently running in Offline Demo Mode. For live, personalized travel recommendations from my AI core, please connect TravelVerse to the internet.*`;
++                }
++                else if (activeTopic === 'Tokyo') {
++                    answer = `### 🍣 Tokyo Culinary Highlights
++Tokyo is the culinary capital of the world with incredible variety:
++* **Ramen**: Visit **Ichiran Ramen Shibuya** or **Tsuta** for delicious tonkotsu or shoyu broth.
++* **Sushi**: Grab fresh sushi at the **Tsukiji Outer Market** early in the morning.
++* **Yakitori**: Head to **Omoide Yokocho** (Memory Lane) in Shinjuku for charcoal-grilled skewers under paper lanterns.
++
++*Note: I am currently running in Offline Demo Mode. For live, personalized travel recommendations from my AI core, please connect TravelVerse to the internet.*`;
++                }
++                else {
++                    answer = `### 🍽️ Culinary Travel Guidelines
++* **Follow the Locals**: Look for busy restaurants 2-3 blocks away from main tourist spots.
++* **Street Food**: Try local street food night markets (e.g. in Bangkok or Taipei) for the most authentic and cheap dining.
++* **Reservations**: For highly rated bistros, book table reservations at least 1-2 weeks in view.
++
++*Note: I am currently running in Offline Demo Mode. For live, personalized travel recommendations from my AI core, please connect TravelVerse to the internet.*`;
++                }
++            }
++            else if (qLower.includes('currency') || qLower.includes('money') || qLower.includes('cost') || qLower.includes('price')) {
++                answer = `### 💵 Travel Currency & Money Guidelines
++Keep these money tips in mind for a smooth journey:
++* **Carry Some Local Cash**: While cards are widely accepted worldwide, small shops, street markets, and public transit terminals often require physical cash (especially in parts of Germany, Japan, and Italy).
++* **Avoid Airport Currency Desks**: They offer some of the worst exchange rates. Use local bank ATMs at your destination instead for fairer rates.
++* **Credit Card Fees**: Make sure you use a card with zero foreign transaction fees to save on every tap. Always select payment in local currency (rather than home currency) if asked on ATM/POS machines.
++
++*Note: I am currently running in Offline Demo Mode. For live, personalized travel recommendations from my AI core, please connect TravelVerse to the internet.*`;
++            }
++            else if (qLower.includes('visa') || qLower.includes('passport')) {
++                answer = `### 🛂 Passport & Visa Requirements
++Preparing travel documentation is crucial:
++* **6-Month Passport Rule**: Many countries require your passport to be valid for at least 6 months beyond your entry or planned departure date.
++* **Visa Checks**: Always double-check visa requirements for your nationality via the official embassy portal of your destination country.
++* **Digital Backups**: Email scanned copies of your passport page, visa, and insurance policy to yourself so they are accessible on any device.
++
++*Note: I am currently running in Offline Demo Mode. For live, personalized travel recommendations from my AI core, please connect TravelVerse to the internet.*`;
++            }
++            else if (qLower.includes('packing') || qLower.includes('pack') || qLower.includes('luggage') || qLower.includes('baggage')) {
++                answer = `### 🧳 Smart Packing Checklist
++A light load makes traveling significantly easier:
++* **Universal Adapter**: Pack a multi-plug universal travel adapter that supports multiple USB ports.
++* **Versatile Layers**: Pack clothing items that can easily be mixed and matched. Layering is key for changing weather.
++* **Footwear**: Bring one pair of worn-in, comfortable walking sneakers. Active travel easily tops 15,000 steps a day.
++* **Personal Medicine & Toiletries**: Carry prescription drugs and a small basic first-aid kit in your carry-on bag.
++
++*Note: I am currently running in Offline Demo Mode. For live, personalized travel recommendations from my AI core, please connect TravelVerse to the internet.*`;
++            }
++            else if (activeTopic) {
++                answer = `### ✈️ Exploring ${activeTopic}
++You are asking about **${activeTopic}**. Here are some helpful highlights:
++* **Top Attraction**: Visit the historic landmarks. In Rome, see the *Colosseum*. In Tokyo, explore *Shibuya Crossing*.
++* **Local Etiquette**:
++  * In Italy, cover shoulders when entering churches; do not order cappuccino after 11 AM.
++  * In Japan, do not tip; stand on the left side of escalators; keep voice low on public transit.
++  
++*Note: I am currently running in Offline Demo Mode. For live, personalized travel recommendations from my AI core, please connect TravelVerse to the internet.*`;
+             }
+             return res.json({ answer, isMock: true });
+         }
+         // Real Gemini integration
+         const genAI = new generative_ai_1.GoogleGenerativeAI(apiKey);
+         const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+-        const systemPrompt = `You are TravelVerse's AI Travel Assistant, a highly helpful, charismatic, and knowledgeable global travel concierge. 
+-    Answer the user's travel question clearly, structuring your response with beautiful Markdown headings and bullet points. 
++        // Build system instruction
++        const systemInstruction = `You are TravelVerse's AI Travel Assistant, a highly helpful, charismatic, and knowledgeable global travel concierge. 
++    Answer the user's travel question clearly, structuring your response with beautiful Markdown headings, bullet points, and bold text. 
+     Keep your recommendations practical, addressing safety tips, food, culture, transit, or packing where relevant.
+     
+-    Context about current travel: ${context || 'General travel help'}`;
+-        const result = await model.generateContent({
+-            contents: [
+-                { role: 'user', parts: [{ text: `${systemPrompt}\n\nUser Question: ${question}` }] }
+-            ]
++    Current Travel Context: ${context || 'General travel help'}`;
++        // Format chat history for Gemini SDK (strictly alternating starting with user)
++        const formattedHistory = [];
++        if (Array.isArray(history) && history.length > 0) {
++            const firstUserIdx = history.findIndex(h => h.sender === 'user');
++            // Exclude the last message since it represents the current question
++            const historyToFormat = firstUserIdx !== -1 ? history.slice(firstUserIdx, -1) : [];
++            let lastRole = null;
++            historyToFormat.forEach((msg) => {
++                const role = msg.sender === 'user' ? 'user' : 'model';
++                if (role !== lastRole) {
++                    formattedHistory.push({
++                        role,
++                        parts: [{ text: msg.text }]
++                    });
++                    lastRole = role;
++                }
++            });
++        }
++        // Build and send to chat session
++        const chat = model.startChat({
++            history: formattedHistory,
++            systemInstruction: systemInstruction,
+         });
++        const result = await chat.sendMessage(question);
+         res.json({ answer: result.response.text(), isMock: false });
+     }
+     catch (err) {
+diff --git a/backend/dist/controllers/groupController.js b/backend/dist/controllers/groupController.js
+index 858c8c9..f428837 100644
+--- a/backend/dist/controllers/groupController.js
++++ b/backend/dist/controllers/groupController.js
+@@ -146,11 +146,26 @@ async function voteOnActivity(req, res) {
+     try {
+         const userId = req.user?.id;
+         const { activityId } = req.body;
+-        // Increment votes
+-        const updated = await (0, db_1.query)('UPDATE activities SET votes_count = votes_count + 1 WHERE id = $1 RETURNING *', [activityId]);
+-        if (updated.length === 0) {
++        // Verify membership / ownership
++        const activityInfo = await (0, db_1.query)('SELECT group_id, trip_id FROM activities WHERE id = $1', [activityId]);
++        if (activityInfo.length === 0) {
+             return res.status(404).json({ message: 'Activity not found' });
+         }
++        const { group_id: groupId, trip_id: tripId } = activityInfo[0];
++        if (groupId) {
++            const membership = await (0, db_1.query)('SELECT 1 FROM group_members WHERE group_id = $1 AND user_id = $2 AND status = \'accepted\'', [groupId, userId]);
++            if (membership.length === 0) {
++                return res.status(403).json({ message: 'Unauthorized to vote on this activity' });
++            }
++        }
++        else if (tripId) {
++            const tripCheck = await (0, db_1.query)('SELECT 1 FROM trips WHERE id = $1 AND user_id = $2', [tripId, userId]);
++            if (tripCheck.length === 0) {
++                return res.status(403).json({ message: 'Unauthorized to vote on this activity' });
++            }
++        }
++        // Increment votes
++        const updated = await (0, db_1.query)('UPDATE activities SET votes_count = votes_count + 1 WHERE id = $1 RETURNING *', [activityId]);
+         res.json({ activity: updated[0] });
+     }
+     catch (err) {
+diff --git a/backend/src/controllers/aiController.ts b/backend/src/controllers/aiController.ts
+index 292622c..2ad4aa1 100644
+--- a/backend/src/controllers/aiController.ts
++++ b/backend/src/controllers/aiController.ts
+@@ -181,7 +181,7 @@ export async function generateItinerary(req: AuthRequest, res: Response) {
+ 
+ export async function askAssistant(req: AuthRequest, res: Response) {
+   try {
+-    const { question, context } = req.body; // context is optional (e.g. past history or destination)
++    const { question, context, history } = req.body; // history is an array of previous messages
+ 
+     if (!question) {
+       return res.status(400).json({ message: 'Question is required' });
+@@ -189,19 +189,202 @@ export async function askAssistant(req: AuthRequest, res: Response) {
+ 
+     const apiKey = process.env.GEMINI_API_KEY;
+ 
++    // Check if the query is travel-related
++    const travelKeywords = [
++      'travel', 'trip', 'visit', 'flight', 'hotel', 'map', 'packing', 'custom', 
++      'safety', 'safe', 'budget', 'food', 'eat', 'restaurant', 'weather', 'season', 
++      'passport', 'visa', 'transit', 'train', 'bus', 'metro', 'airport', 'ticket', 
++      'luggage', 'baggage', 'explore', 'guide', 'attraction', 'currency', 'money', 
++      'cost', 'price', 'booking', 'insurance', 'rome', 'italy', 'tokyo', 'japan', 
++      'paris', 'france', 'london', 'uk', 'united kingdom'
++    ];
++    
++    const qLower = question.toLowerCase();
++    const isTravelRelated = travelKeywords.some(keyword => qLower.includes(keyword));
++
++    if (!isTravelRelated) {
++      return res.json({
++        answer: `I am your TravelVerse Concierge, specialized in global travel planning, local insights, safety guidelines, and culinary recommendations. How can I help you with your next adventure?`,
++        isMock: true
++      });
++    }
++
+     if (!apiKey) {
+       console.warn('GEMINI_API_KEY not found. Returning helpful template-based travel assistant response.');
+       
+-      // Let's generate a smart mock answer based on keywords in the question
+-      const q = question.toLowerCase();
+-      let answer = `That is an excellent travel question! Without a live Gemini connection, here are some general tips: \n\n1. **Always plan transit in advance**: Research regional rail passes or subway cards to save up to 40%.\n2. **Safety First**: Make copies of your passport, and store digital copies securely in your email.\n3. **Local Cuisine**: Look for restaurants filled with locals, typically 2-3 blocks away from main tourist spots.\n\nPlease enter your GEMINI_API_KEY in the backend .env file to enable custom, fully intelligent real-time travel AI advice!`;
++      // Determine the active topic from current question or conversation history
++      let activeTopic = '';
++      if (qLower.includes('rome') || qLower.includes('italy')) activeTopic = 'Rome';
++      else if (qLower.includes('tokyo') || qLower.includes('japan')) activeTopic = 'Tokyo';
++      else if (qLower.includes('paris') || qLower.includes('france')) activeTopic = 'Paris';
++      else if (qLower.includes('london') || qLower.includes('uk') || qLower.includes('united kingdom')) activeTopic = 'London';
+       
+-      if (q.includes('safety') || q.includes('safe')) {
+-        answer = `When traveling, safety is paramount. Here are key guidelines:\n\n- **Stay Alert in Crowds**: Pickpocketing is common in major hubs like train stations and landmarks.\n- **Travel Insurance**: Get comprehensive coverage including health and cancellation protection.\n- **Emergency Numbers**: Save local police/medical numbers (e.g., 112 in EU, 911 in US) and your embassy coordinates.\n- **Night Transit**: Prefer registered taxi services (or apps like Uber/Grab) over walking alone at night in unfamiliar neighborhoods.`;
+-      } else if (q.includes('transport') || q.includes('bus') || q.includes('train') || q.includes('metro')) {
+-        answer = `Navigating a new city can be easy with these transportation guidelines:\n\n- **Transit Cards**: Cities like London (Oyster), Tokyo (Suica), and Paris (Navigo) offer integrated tap cards that work across subways, buses, and trains.\n- **High-Speed Rail**: If traveling between cities (e.g., Shinkansen in Japan, TGV in France), booking tickets 2-4 weeks in advance yields major savings.\n- **Walking Maps**: Download Google Maps or Maps.me offline data before leaving your hotel to navigate without roaming data.`;
+-      } else if (q.includes('season') || q.includes('weather') || q.includes('when to visit') || q.includes('best time')) {
+-        answer = `Choosing the right travel season makes a huge difference:\n\n- **Shoulder Season**: The absolute best value (spring or autumn). Lower prices, milder weather, and fewer crowds.\n- **High Season (Summer/Holidays)**: Perfect weather but peak prices and long queues. Requires booking flights/lodging months in advance.\n- **Low Season**: Great for budget travel, but expect wetter/colder weather and some attractions to close early.`;
++      // If not in current question, look back at history
++      if (!activeTopic && Array.isArray(history)) {
++        for (let i = history.length - 1; i >= 0; i--) {
++          const txt = history[i].text?.toLowerCase() || '';
++          if (txt.includes('rome') || txt.includes('italy')) { activeTopic = 'Rome'; break; }
++          if (txt.includes('tokyo') || txt.includes('japan')) { activeTopic = 'Tokyo'; break; }
++          if (txt.includes('paris') || txt.includes('france')) { activeTopic = 'Paris'; break; }
++          if (txt.includes('london') || txt.includes('uk') || txt.includes('united kingdom')) { activeTopic = 'London'; break; }
++        }
++      }
++
++      // Default fallback responses
++      let answer = `### Global Travel Tips 🌍
++
++Here are some top travel tips from TravelVerse:
++* **Plan Transit in Advance**: Research regional rail passes or subway cards to save up to 40% on fares.
++* **Safety First**: Keep digital copies of your passport and visa stored securely in your cloud email.
++* **Eat Local**: Look for busy restaurants 2-3 blocks away from main tourist spots to find authentic, cheap food.
++
++*Note: I am currently running in Offline Demo Mode. For live, personalized travel recommendations from my AI core, please connect TravelVerse to the internet.*`;
++
++      if (qLower.includes('safety') || qLower.includes('safe')) {
++        if (activeTopic === 'Rome') {
++          answer = `### 🔒 Safety in Rome, Italy
++When visiting Rome, keep these safety guidelines in mind:
++* **Watch out for Pickpockets**: Be extremely alert at crowded metro stations (Termini, Colosseo), Termini Station, and tourist spots like the Trevi Fountain.
++* **Bag Safety**: Keep bags zipped and hold them in front of you. Never leave your phone on the restaurant tables.
++* **Emergency Info**: The general European emergency number is **112**. Keep your embassy phone number handy.
++
++*Note: I am currently running in Offline Demo Mode. For live, personalized travel recommendations from my AI core, please connect TravelVerse to the internet.*`;
++        } else if (activeTopic === 'Tokyo') {
++          answer = `### 🔒 Safety in Tokyo, Japan
++Tokyo is consistently ranked as one of the safest cities in the world:
++* **Lost Items**: If you lose something in a metro station or taxi, check the local Koban (police box). Items are returned almost 95% of the time.
++* **Earthquake Prep**: Familiarize yourself with emergency exits at your hotel.
++* **Emergency Info**: Call **110** for police and **119** for ambulance/fire.
++
++*Note: I am currently running in Offline Demo Mode. For live, personalized travel recommendations from my AI core, please connect TravelVerse to the internet.*`;
++        } else {
++          answer = `### 🔒 Global Safety Guidelines
++When traveling, safety is paramount. Keep these guidelines in mind:
++* **Stay Alert in Crowds**: Pickpocketing is common in major transit hubs and landmarks.
++* **Travel Insurance**: Get comprehensive coverage including health and cancellation protection.
++* **Emergency Contacts**: Save local emergency numbers (e.g., 112 in EU, 911 in US) and your embassy coordinates.
++* **Night Transit**: Prefer registered taxi services or ride-hailing apps over walking alone in unfamiliar neighborhoods.
++
++*Note: I am currently running in Offline Demo Mode. For live, personalized travel recommendations from my AI core, please connect TravelVerse to the internet.*`;
++        }
++      } else if (qLower.includes('transport') || qLower.includes('bus') || qLower.includes('train') || qLower.includes('metro') || qLower.includes('airport') || qLower.includes('get there')) {
++        if (activeTopic === 'Rome') {
++          answer = `### 🚇 Transit & Airport Guide for Rome
++Getting around Rome is easy once you know the routes:
++* **Airport Transfer**: Take the **Leonardo Express** train from Fiumicino Airport (FCO) directly to Termini Station. It takes 32 minutes and costs €14.
++* **Metro & Bus**: Rome has Metro lines A and B. Buy a single €1.50 ticket (valid for 100 minutes) or a 24h/48h pass. You must validate tickets before boarding buses.
++* **Walking**: Rome is best explored on foot. Wear comfortable sneakers!
++
++*Note: I am currently running in Offline Demo Mode. For live, personalized travel recommendations from my AI core, please connect TravelVerse to the internet.*`;
++        } else if (activeTopic === 'Tokyo') {
++          answer = `### 🚇 Transit & Airport Guide for Tokyo
++Tokyo has one of the world's most advanced transit networks:
++* **Airport Transfer**:
++  * **Narita (NRT)**: Use the **JR Narita Express (N'EX)** to Tokyo/Shibuya/Shinjuku (approx. 60 mins) or the **Keisei Skyliner** to Ueno.
++  * **Haneda (HND)**: Take the **Tokyo Monorail** or the **Keikyu Airport Line** (approx. 15-20 mins).
++* **IC Cards**: Purchase a digital **Suica** or **Pasmo** card for your phone. You can tap it to ride all trains, subway lines, and buses.
++* **Metro Passes**: Look into the Tokyo Subway Ticket (24h/48h/72h options) for unlimited rides on Tokyo Metro & Toei Subway.
++
++*Note: I am currently running in Offline Demo Mode. For live, personalized travel recommendations from my AI core, please connect TravelVerse to the internet.*`;
++        } else if (activeTopic === 'Paris') {
++          answer = `### 🚇 Transit & Airport Guide for Paris
++Paris has an excellent public transport system:
++* **Airport Transfer**: From Charles de Gaulle (CDG), take the **RER B** train directly to Gare du Nord or Châtelet (€11.80).
++* **Metro**: Paris has 14 metro lines. You can tap your phone or credit card on the Navigo Easy pass to ride.
++* **Train Pass**: If staying for a full calendar week, a Navigo Weekly Pass offers unlimited travel.
++
++*Note: I am currently running in Offline Demo Mode. For live, personalized travel recommendations from my AI core, please connect TravelVerse to the internet.*`;
++        } else {
++          answer = `### 🚇 Global Transportation Guidelines
++Navigating a new city can be simple with these guidelines:
++* **Transit Cards**: Use contactless payment or smartcards (like London's Oyster, Tokyo's Suica, Paris's Navigo) for discounted rates.
++* **High-Speed Rail**: Book tickets 2-4 weeks in advance for intercity routes (e.g. Shinkansen in Japan, TGV in France) to save up to 50%.
++* **Offline Maps**: Download Google Maps or Maps.me offline maps before leaving your hotel to navigate without cellular data.
++
++*Note: I am currently running in Offline Demo Mode. For live, personalized travel recommendations from my AI core, please connect TravelVerse to the internet.*`;
++        }
++      } else if (qLower.includes('season') || qLower.includes('weather') || qLower.includes('when to visit') || qLower.includes('best time')) {
++        if (activeTopic === 'Rome') {
++          answer = `### ☀️ Best Time to Visit Rome
++* **Shoulder Season (April-May & September-October)**: Mild weather, gorgeous sunsets, and moderate crowds. Perfect for sightseeing.
++* **Summer (June-August)**: Extremely hot (often over 35°C/95°F) with massive tourist crowds.
++* **Winter (November-March)**: Cooler and wetter, but hotels are cheap and landmarks have no queues.
++
++*Note: I am currently running in Offline Demo Mode. For live, personalized travel recommendations from my AI core, please connect TravelVerse to the internet.*`;
++        } else if (activeTopic === 'Tokyo') {
++          answer = `### 🌸 Best Time to Visit Tokyo
++* **Spring (March-May)**: Famous cherry blossom season (Sakura). Beautiful mild weather, though prices and crowds peak in early April.
++* **Autumn (September-November)**: Staggering red maple leaf foliage (Koyo), clear skies, and comfortable hiking weather.
++* **Summer (June-August)**: Hot, humid, and rainy (rainy season in June), but great for summer festivals and fireworks.
++
++*Note: I am currently running in Offline Demo Mode. For live, personalized travel recommendations from my AI core, please connect TravelVerse to the internet.*`;
++        } else {
++          answer = `### 📅 Selecting the Right Travel Season
++* **Shoulder Season**: The absolute best value (spring or autumn). Offers lower prices, mild weather, and fewer crowds.
++* **High Season**: Perfect weather but peak prices and long lines. Requires booking flights and lodging months in advance.
++* **Low Season**: Great for budget travelers, but check for winter closures or rainy seasons depending on the destination.
++
++*Note: I am currently running in Offline Demo Mode. For live, personalized travel recommendations from my AI core, please connect TravelVerse to the internet.*`;
++        }
++      } else if (qLower.includes('food') || qLower.includes('eat') || qLower.includes('restaurant') || qLower.includes('dish')) {
++        if (activeTopic === 'Rome') {
++          answer = `### 🍝 Roman Food Specialties
++Rome is a paradise for food lovers:
++* **The Four Roman Pastas**: Try **Cacio e Pepe** (cheese and pepper), **Carbonara** (egg, guanciale, pecorino), **Amatriciana** (tomato, guanciale), and **Gricia**.
++* **Pizza al Taglio**: Pizza sold by weight. A perfect, quick street food lunch.
++* **Gelato**: Seek out artisanal gelaterias like *Frigidarium* or *Giolitti*. Avoid bright neon-colored mounds!
++
++*Note: I am currently running in Offline Demo Mode. For live, personalized travel recommendations from my AI core, please connect TravelVerse to the internet.*`;
++        } else if (activeTopic === 'Tokyo') {
++          answer = `### 🍣 Tokyo Culinary Highlights
++Tokyo is the culinary capital of the world with incredible variety:
++* **Ramen**: Visit **Ichiran Ramen Shibuya** or **Tsuta** for delicious tonkotsu or shoyu broth.
++* **Sushi**: Grab fresh sushi at the **Tsukiji Outer Market** early in the morning.
++* **Yakitori**: Head to **Omoide Yokocho** (Memory Lane) in Shinjuku for charcoal-grilled skewers under paper lanterns.
++
++*Note: I am currently running in Offline Demo Mode. For live, personalized travel recommendations from my AI core, please connect TravelVerse to the internet.*`;
++        } else {
++          answer = `### 🍽️ Culinary Travel Guidelines
++* **Follow the Locals**: Look for busy restaurants 2-3 blocks away from main tourist spots.
++* **Street Food**: Try local street food night markets (e.g. in Bangkok or Taipei) for the most authentic and cheap dining.
++* **Reservations**: For highly rated bistros, book table reservations at least 1-2 weeks in view.
++
++*Note: I am currently running in Offline Demo Mode. For live, personalized travel recommendations from my AI core, please connect TravelVerse to the internet.*`;
++        }
++      } else if (qLower.includes('currency') || qLower.includes('money') || qLower.includes('cost') || qLower.includes('price')) {
++        answer = `### 💵 Travel Currency & Money Guidelines
++Keep these money tips in mind for a smooth journey:
++* **Carry Some Local Cash**: While cards are widely accepted worldwide, small shops, street markets, and public transit terminals often require physical cash (especially in parts of Germany, Japan, and Italy).
++* **Avoid Airport Currency Desks**: They offer some of the worst exchange rates. Use local bank ATMs at your destination instead for fairer rates.
++* **Credit Card Fees**: Make sure you use a card with zero foreign transaction fees to save on every tap. Always select payment in local currency (rather than home currency) if asked on ATM/POS machines.
++
++*Note: I am currently running in Offline Demo Mode. For live, personalized travel recommendations from my AI core, please connect TravelVerse to the internet.*`;
++      } else if (qLower.includes('visa') || qLower.includes('passport')) {
++        answer = `### 🛂 Passport & Visa Requirements
++Preparing travel documentation is crucial:
++* **6-Month Passport Rule**: Many countries require your passport to be valid for at least 6 months beyond your entry or planned departure date.
++* **Visa Checks**: Always double-check visa requirements for your nationality via the official embassy portal of your destination country.
++* **Digital Backups**: Email scanned copies of your passport page, visa, and insurance policy to yourself so they are accessible on any device.
++
++*Note: I am currently running in Offline Demo Mode. For live, personalized travel recommendations from my AI core, please connect TravelVerse to the internet.*`;
++      } else if (qLower.includes('packing') || qLower.includes('pack') || qLower.includes('luggage') || qLower.includes('baggage')) {
++        answer = `### 🧳 Smart Packing Checklist
++A light load makes traveling significantly easier:
++* **Universal Adapter**: Pack a multi-plug universal travel adapter that supports multiple USB ports.
++* **Versatile Layers**: Pack clothing items that can easily be mixed and matched. Layering is key for changing weather.
++* **Footwear**: Bring one pair of worn-in, comfortable walking sneakers. Active travel easily tops 15,000 steps a day.
++* **Personal Medicine & Toiletries**: Carry prescription drugs and a small basic first-aid kit in your carry-on bag.
++
++*Note: I am currently running in Offline Demo Mode. For live, personalized travel recommendations from my AI core, please connect TravelVerse to the internet.*`;
++      } else if (activeTopic) {
++        answer = `### ✈️ Exploring ${activeTopic}
++You are asking about **${activeTopic}**. Here are some helpful highlights:
++* **Top Attraction**: Visit the historic landmarks. In Rome, see the *Colosseum*. In Tokyo, explore *Shibuya Crossing*.
++* **Local Etiquette**:
++  * In Italy, cover shoulders when entering churches; do not order cappuccino after 11 AM.
++  * In Japan, do not tip; stand on the left side of escalators; keep voice low on public transit.
++  
++*Note: I am currently running in Offline Demo Mode. For live, personalized travel recommendations from my AI core, please connect TravelVerse to the internet.*`;
+       }
+ 
+       return res.json({ answer, isMock: true });
+@@ -211,18 +394,40 @@ export async function askAssistant(req: AuthRequest, res: Response) {
+     const genAI = new GoogleGenerativeAI(apiKey);
+     const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+ 
+-    const systemPrompt = `You are TravelVerse's AI Travel Assistant, a highly helpful, charismatic, and knowledgeable global travel concierge. 
+-    Answer the user's travel question clearly, structuring your response with beautiful Markdown headings and bullet points. 
++    // Build system instruction
++    const systemInstruction = `You are TravelVerse's AI Travel Assistant, a highly helpful, charismatic, and knowledgeable global travel concierge. 
++    Answer the user's travel question clearly, structuring your response with beautiful Markdown headings, bullet points, and bold text. 
+     Keep your recommendations practical, addressing safety tips, food, culture, transit, or packing where relevant.
+     
+-    Context about current travel: ${context || 'General travel help'}`;
++    Current Travel Context: ${context || 'General travel help'}`;
+ 
+-    const result = await model.generateContent({
+-      contents: [
+-        { role: 'user', parts: [{ text: `${systemPrompt}\n\nUser Question: ${question}` }] }
+-      ]
++    // Format chat history for Gemini SDK (strictly alternating starting with user)
++    const formattedHistory: any[] = [];
++    if (Array.isArray(history) && history.length > 0) {
++      const firstUserIdx = history.findIndex(h => h.sender === 'user');
++      // Exclude the last message since it represents the current question
++      const historyToFormat = firstUserIdx !== -1 ? history.slice(firstUserIdx, -1) : [];
++
++      let lastRole: 'user' | 'model' | null = null;
++      historyToFormat.forEach((msg) => {
++        const role = msg.sender === 'user' ? 'user' : 'model';
++        if (role !== lastRole) {
++          formattedHistory.push({
++            role,
++            parts: [{ text: msg.text }]
++          });
++          lastRole = role;
++        }
++      });
++    }
++
++    // Build and send to chat session
++    const chat = model.startChat({
++      history: formattedHistory,
++      systemInstruction: systemInstruction,
+     });
+ 
++    const result = await chat.sendMessage(question);
+     res.json({ answer: result.response.text(), isMock: false });
+   } catch (err: any) {
+     console.error('Gemini assistant error:', err.message || err);
+diff --git a/backend/src/controllers/groupController.ts b/backend/src/controllers/groupController.ts
+index 5ad4470..e2ab155 100644
+--- a/backend/src/controllers/groupController.ts
++++ b/backend/src/controllers/groupController.ts
+@@ -211,16 +211,34 @@ export async function voteOnActivity(req: AuthRequest, res: Response) {
+     const userId = req.user?.id;
+     const { activityId } = req.body;
+ 
++    // Verify membership / ownership
++    const activityInfo = await query('SELECT group_id, trip_id FROM activities WHERE id = $1', [activityId]);
++    if (activityInfo.length === 0) {
++      return res.status(404).json({ message: 'Activity not found' });
++    }
++    const { group_id: groupId, trip_id: tripId } = activityInfo[0];
++
++    if (groupId) {
++      const membership = await query(
++        'SELECT 1 FROM group_members WHERE group_id = $1 AND user_id = $2 AND status = \'accepted\'',
++        [groupId, userId]
++      );
++      if (membership.length === 0) {
++        return res.status(403).json({ message: 'Unauthorized to vote on this activity' });
++      }
++    } else if (tripId) {
++      const tripCheck = await query('SELECT 1 FROM trips WHERE id = $1 AND user_id = $2', [tripId, userId]);
++      if (tripCheck.length === 0) {
++        return res.status(403).json({ message: 'Unauthorized to vote on this activity' });
++      }
++    }
++
+     // Increment votes
+     const updated = await query(
+       'UPDATE activities SET votes_count = votes_count + 1 WHERE id = $1 RETURNING *',
+       [activityId]
+     );
+ 
+-    if (updated.length === 0) {
+-      return res.status(404).json({ message: 'Activity not found' });
+-    }
+-
+     res.json({ activity: updated[0] });
+   } catch (err: any) {
+     console.error('Vote activity error:', err.message);
+diff --git a/backend/travelverse.db b/backend/travelverse.db
+index 86ae89e..1c77b99 100644
+Binary files a/backend/travelverse.db and b/backend/travelverse.db differ
+diff --git a/frontend/src/components/InteractiveMap.tsx b/frontend/src/components/InteractiveMap.tsx
+index cadd6f0..fc622ff 100644
+--- a/frontend/src/components/InteractiveMap.tsx
++++ b/frontend/src/components/InteractiveMap.tsx
+@@ -1,6 +1,5 @@
+ import React, { useState } from 'react';
+ import { ComposableMap, Geographies, Geography, ZoomableGroup } from 'react-simple-maps';
+-import { Sparkles, Check, Bookmark, Calendar, X } from 'lucide-react';
+ 
+ const geoUrl = '/countries-110m.json';
+ 
+@@ -120,7 +119,6 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({ countries, onCou
+               geographies.map((geo) => {
+                 const countryName = geo.properties.name;
+                 const code = mapNameToCode(countryName);
+-                const isHovered = hoveredCountry === code;
+                 const currentStatus = statusLookup[code];
+                 
+                 return (
+diff --git a/frontend/src/components/Navbar.tsx b/frontend/src/components/Navbar.tsx
+index ef51742..80f4965 100644
+--- a/frontend/src/components/Navbar.tsx
++++ b/frontend/src/components/Navbar.tsx
+@@ -3,7 +3,7 @@ import { Link, useNavigate, useLocation } from 'react-router-dom';
+ import { useAuth } from '../context/AuthContext';
+ import { useTheme } from '../context/ThemeContext';
+ import { 
+-  Compass, Map, Sparkles, MessageSquare, Award, 
++  Compass, Map, Sparkles, Award, 
+   Sun, Moon, Menu, X, LogOut, User as UserIcon, Settings, Calendar
+ } from 'lucide-react';
+ 
+diff --git a/frontend/src/components/RecommendationCard.tsx b/frontend/src/components/RecommendationCard.tsx
+index 644df58..19157d6 100644
+--- a/frontend/src/components/RecommendationCard.tsx
++++ b/frontend/src/components/RecommendationCard.tsx
+@@ -1,4 +1,4 @@
+-import React, { useState, useEffect } from 'react';
++import React, { useState } from 'react';
+ import { Star, MapPin, Heart, MessageCircle, Navigation, Clock, DollarSign, Send } from 'lucide-react';
+ import { apiRequest } from '../services/api';
+ 
+@@ -23,24 +23,34 @@ export interface Recommendation {
+   created_at: string;
+ }
+ 
++interface Comment {
++  id: number;
++  username: string;
++  profile_picture?: string;
++  content: string;
++}
++
+ interface RecommendationCardProps {
+   rec: Recommendation;
+   onLikeToggle?: (id: number, nowLiked: boolean) => void;
+ }
+ 
+ export const RecommendationCard: React.FC<RecommendationCardProps> = ({ rec, onLikeToggle }) => {
++  const [prevRec, setPrevRec] = useState(rec);
+   const [liked, setLiked] = useState(rec.is_liked);
+   const [likesCount, setLikesCount] = useState(Number(rec.likes_count));
++  const [commentsCount, setCommentsCount] = useState(Number(rec.comments_count));
+   const [showComments, setShowComments] = useState(false);
+-  const [comments, setComments] = useState<any[]>([]);
++  const [comments, setComments] = useState<Comment[]>([]);
+   const [newComment, setNewComment] = useState('');
+-  const [loadingComments, setLoadingComments] = useState(false);
+ 
+-  // Sync state with props
+-  useEffect(() => {
++  // Sync state synchronously during render if props change
++  if (rec.id !== prevRec.id || rec.is_liked !== prevRec.is_liked || rec.likes_count !== prevRec.likes_count || rec.comments_count !== prevRec.comments_count) {
++    setPrevRec(rec);
+     setLiked(rec.is_liked);
+     setLikesCount(Number(rec.likes_count));
+-  }, [rec]);
++    setCommentsCount(Number(rec.comments_count));
++  }
+ 
+   const handleLike = async () => {
+     try {
+@@ -57,7 +67,7 @@ export const RecommendationCard: React.FC<RecommendationCardProps> = ({ rec, onL
+       if (onLikeToggle) {
+         onLikeToggle(rec.id, res.liked);
+       }
+-    } catch (err) {
++    } catch {
+       // Revert on error
+       setLiked(rec.is_liked);
+       setLikesCount(Number(rec.likes_count));
+@@ -69,15 +79,12 @@ export const RecommendationCard: React.FC<RecommendationCardProps> = ({ rec, onL
+       setShowComments(true);
+       return;
+     }
+-    setLoadingComments(true);
+     try {
+       const data = await apiRequest(`/social/comment?recommendation_id=${rec.id}`);
+       setComments(data.comments || []);
+       setShowComments(true);
+     } catch (err) {
+       console.error('Failed to load comments:', err);
+-    } finally {
+-      setLoadingComments(false);
+     }
+   };
+ 
+@@ -94,7 +101,7 @@ export const RecommendationCard: React.FC<RecommendationCardProps> = ({ rec, onL
+         setComments(prev => [...prev, data.comment]);
+         setNewComment('');
+         // Increment comment counter in local view
+-        rec.comments_count = Number(rec.comments_count) + 1;
++        setCommentsCount(prev => prev + 1);
+       }
+     } catch (err) {
+       console.error('Post comment failed:', err);
+@@ -216,7 +223,7 @@ export const RecommendationCard: React.FC<RecommendationCardProps> = ({ rec, onL
+             className="flex items-center gap-1.5 text-sm font-semibold text-slate-500 dark:text-slate-400 hover:text-emerald-500 transition-colors"
+           >
+             <MessageCircle className="h-5 w-5" />
+-            <span>{rec.comments_count}</span>
++            <span>{commentsCount}</span>
+           </button>
+         </div>
+       </div>
+diff --git a/frontend/src/context/AuthContext.tsx b/frontend/src/context/AuthContext.tsx
+index 4147f6a..38b0962 100644
+--- a/frontend/src/context/AuthContext.tsx
++++ b/frontend/src/context/AuthContext.tsx
+@@ -1,3 +1,4 @@
++/* eslint-disable react-refresh/only-export-components */
+ import React, { createContext, useContext, useState, useEffect } from 'react';
+ import { apiRequest } from '../services/api';
+ 
+diff --git a/frontend/src/context/ThemeContext.tsx b/frontend/src/context/ThemeContext.tsx
+index c066819..7d8a95f 100644
+--- a/frontend/src/context/ThemeContext.tsx
++++ b/frontend/src/context/ThemeContext.tsx
+@@ -1,3 +1,4 @@
++/* eslint-disable react-refresh/only-export-components */
+ import React, { createContext, useContext, useState, useEffect } from 'react';
+ 
+ type Theme = 'light' | 'dark';
+diff --git a/frontend/src/pages/AIAssistant.tsx b/frontend/src/pages/AIAssistant.tsx
+index 778304d..029ec9b 100644
+--- a/frontend/src/pages/AIAssistant.tsx
++++ b/frontend/src/pages/AIAssistant.tsx
+@@ -1,10 +1,9 @@
+-import React, { useState } from 'react';
++import React, { useState, useEffect, useRef } from 'react';
+ import { useNavigate } from 'react-router-dom';
+ import { apiRequest } from '../services/api';
+ import { 
+   Sparkles, Compass, HelpCircle, Send, Plus, 
+-  DollarSign, Check, AlertCircle, ChevronDown, ChevronRight,
+-  Utensils, Globe, Shield, Calendar, Info, Clock
++  DollarSign, Check, Info, Clock, Bookmark
+ } from 'lucide-react';
+ 
+ interface ChatMessage {
+@@ -12,6 +11,185 @@ interface ChatMessage {
+   text: string;
+ }
+ 
++// Places catalog for interactive wishlist suggestions
++const PLACE_CATALOG = [
++  // Rome
++  { name: 'Colosseum', type: 'attraction', country: 'Italy' },
++  { name: 'Trevi Fountain', type: 'attraction', country: 'Italy' },
++  { name: 'Pantheon', type: 'attraction', country: 'Italy' },
++  { name: 'Vatican Museums', type: 'attraction', country: 'Italy' },
++  { name: 'Spanish Steps', type: 'attraction', country: 'Italy' },
++  { name: 'Rome', type: 'city', country: 'Italy' },
++  // Tokyo
++  { name: 'Shibuya Crossing', type: 'attraction', country: 'Japan' },
++  { name: 'Senso-ji Temple', type: 'attraction', country: 'Japan' },
++  { name: 'Meiji Jingu Shrine', type: 'attraction', country: 'Japan' },
++  { name: 'TeamLab Planets', type: 'attraction', country: 'Japan' },
++  { name: 'Mount Fuji', type: 'attraction', country: 'Japan' },
++  { name: 'Ichiran Ramen Shibuya', type: 'attraction', country: 'Japan' },
++  { name: 'Tokyo', type: 'city', country: 'Japan' },
++  // Paris
++  { name: 'Eiffel Tower', type: 'attraction', country: 'France' },
++  { name: 'Louvre Museum', type: 'attraction', country: 'France' },
++  { name: 'Montmartre', type: 'attraction', country: 'France' },
++  { name: 'Palace of Versailles', type: 'attraction', country: 'France' },
++  { name: 'Seine River Cruise', type: 'attraction', country: 'France' },
++  { name: 'Paris', type: 'city', country: 'France' },
++  // London
++  { name: 'British Museum', type: 'attraction', country: 'United Kingdom' },
++  { name: 'Tower of London', type: 'attraction', country: 'United Kingdom' },
++  { name: 'London Eye', type: 'attraction', country: 'United Kingdom' },
++  { name: 'Westminster Abbey', type: 'attraction', country: 'United Kingdom' },
++  { name: 'Borough Market', type: 'attraction', country: 'United Kingdom' },
++  { name: 'London', type: 'city', country: 'United Kingdom' }
++];
++
++const detectPlaces = (text: string) => {
++  const detected: typeof PLACE_CATALOG = [];
++  const lowerText = text.toLowerCase();
++  
++  PLACE_CATALOG.forEach(place => {
++    if (lowerText.includes(place.name.toLowerCase())) {
++      // Check if place is already added to avoid duplicates
++      if (!detected.some(p => p.name === place.name)) {
++        detected.push(place);
++      }
++    }
++  });
++  
++  return detected.slice(0, 3);
++};
++
++// Custom Markdown parser rendering styled HTML elements
++const MarkdownRenderer: React.FC<{ text: string }> = ({ text }) => {
++  if (!text) return null;
++
++  const lines = text.split('\n');
++  const elements: React.ReactNode[] = [];
++  let inList = false;
++  let listItems: React.ReactNode[] = [];
++
++  const parseInlineMarkdown = (lineText: string) => {
++    const parts = [];
++    const regex = /(\*\*.*?\*\*|`.*?`)/g;
++    let match;
++    let lastIndex = 0;
++    
++    while ((match = regex.exec(lineText)) !== null) {
++      const matchIndex = match.index;
++      if (matchIndex > lastIndex) {
++        parts.push(lineText.substring(lastIndex, matchIndex));
++      }
++      
++      const matchedStr = match[0];
++      if (matchedStr.startsWith('**') && matchedStr.endsWith('**')) {
++        parts.push(<strong key={matchIndex} className="font-extrabold text-slate-900 dark:text-white">{matchedStr.slice(2, -2)}</strong>);
++      } else if (matchedStr.startsWith('`') && matchedStr.endsWith('`')) {
++        parts.push(<code key={matchIndex} className="px-1.5 py-0.5 bg-slate-150 dark:bg-slate-800 rounded font-mono text-emerald-600 dark:text-emerald-400 text-xs">{matchedStr.slice(1, -1)}</code>);
++      }
++      lastIndex = regex.lastIndex;
++    }
++    
++    if (lastIndex < lineText.length) {
++      parts.push(lineText.substring(lastIndex));
++    }
++    
++    return parts.length > 0 ? parts : lineText;
++  };
++
++  const flushList = (key: number) => {
++    if (listItems.length > 0) {
++      elements.push(
++        <ul key={`ul-${key}`} className="list-disc pl-5 my-2 space-y-1">
++          {listItems}
++        </ul>
++      );
++      listItems = [];
++    }
++  };
++
++  lines.forEach((line, idx) => {
++    const trimmed = line.trim();
++
++    if (trimmed.startsWith('### ')) {
++      flushList(idx);
++      elements.push(
++        <h4 key={idx} className="text-sm font-extrabold text-slate-800 dark:text-slate-100 mt-4 mb-2 first:mt-1 font-serif">
++          {parseInlineMarkdown(trimmed.substring(4))}
++        </h4>
++      );
++    } else if (trimmed.startsWith('## ')) {
++      flushList(idx);
++      elements.push(
++        <h3 key={idx} className="text-base font-extrabold text-slate-800 dark:text-slate-100 mt-4 mb-2 first:mt-1 font-serif">
++          {parseInlineMarkdown(trimmed.substring(3))}
++        </h3>
++      );
++    } else if (trimmed.startsWith('# ')) {
++      flushList(idx);
++      elements.push(
++        <h2 key={idx} className="text-lg font-extrabold text-slate-800 dark:text-slate-100 mt-4 mb-2 first:mt-1 font-serif">
++          {parseInlineMarkdown(trimmed.substring(2))}
++        </h2>
++      );
++    } else if (trimmed.startsWith('* ') || trimmed.startsWith('- ')) {
++      inList = true;
++      listItems.push(
++        <li key={idx} className="text-xs sm:text-sm text-slate-650 dark:text-slate-350 leading-relaxed">
++          {parseInlineMarkdown(trimmed.substring(2))}
++        </li>
++      );
++    } else {
++      if (inList) {
++        flushList(idx);
++        inList = false;
++      }
++      
++      if (trimmed === '') {
++        elements.push(<div key={idx} className="h-2" />);
++      } else {
++        elements.push(
++          <p key={idx} className="text-xs sm:text-sm text-slate-650 dark:text-slate-350 leading-relaxed mb-1.5 last:mb-0">
++            {parseInlineMarkdown(line)}
++          </p>
++        );
++      }
++    }
++  });
++
++  flushList(lines.length);
++
++  return <div className="space-y-1.5">{elements}</div>;
++};
++
++interface Activity {
++  time: string;
++  title: string;
++  description: string;
++}
++
++interface ItineraryDay {
++  day: number;
++  title: string;
++  activities: Activity[];
++}
++
++interface EstimatedCost {
++  total: number;
++  breakdown: Record<string, number>;
++}
++
++interface ItineraryResult {
++  destination: string;
++  days: number;
++  budget: string;
++  interests: string[];
++  estimatedCost: EstimatedCost;
++  itinerary: ItineraryDay[];
++  isMock?: boolean;
++  tips?: string[];
++}
++
+ export const AIAssistant: React.FC = () => {
+   const navigate = useNavigate();
+   const [activeTool, setActiveTool] = useState<'planner' | 'chat'>('planner');
+@@ -22,7 +200,7 @@ export const AIAssistant: React.FC = () => {
+   const [budget, setBudget] = useState('medium');
+   const [selectedInterests, setSelectedInterests] = useState<string[]>([]);
+   const [generating, setGenerating] = useState(false);
+-  const [itineraryResult, setItineraryResult] = useState<any>(null);
++  const [itineraryResult, setItineraryResult] = useState<ItineraryResult | null>(null);
+   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
+ 
+   // TRAVEL ASSISTANT CHAT STATE
+@@ -31,6 +209,16 @@ export const AIAssistant: React.FC = () => {
+     { sender: 'assistant', text: "Hello! I am your TravelVerse AI Assistant. Ask me anything about your upcoming journeys—local customs, safety tips, best travel seasons, or transit choices!" }
+   ]);
+   const [sendingChat, setSendingChat] = useState(false);
++  const [savedPlaces, setSavedPlaces] = useState<Record<string, boolean>>({});
++
++  const messagesEndRef = useRef<HTMLDivElement>(null);
++
++  // Scroll to bottom of chat when history changes
++  useEffect(() => {
++    if (activeTool === 'chat') {
++      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
++    }
++  }, [chatHistory, sendingChat, activeTool]);
+ 
+   const interestOptions = ['Nature', 'Beaches', 'Adventure', 'Food', 'Shopping', 'Historical', 'Art', 'Nightlife'];
+ 
+@@ -92,7 +280,7 @@ export const AIAssistant: React.FC = () => {
+         const savedTrip = tripRes.trip;
+         
+         for (const item of (itineraryResult.itinerary || [])) {
+-          const notesText = item.activities?.map((a: any) => `* **${a.time || ''} - ${a.title}**: ${a.description}`).join('\n\n') || '';
++          const notesText = item.activities?.map((a: Activity) => `* **${a.time || ''} - ${a.title}**: ${a.description}`).join('\n\n') || '';
+           
+           await apiRequest('/trips/itinerary', {
+             method: 'POST',
+@@ -141,19 +329,19 @@ export const AIAssistant: React.FC = () => {
+   };
+ 
+   // Conversational Travel Q&A
+-  const handleSendChat = async (e: React.FormEvent) => {
+-    e.preventDefault();
+-    if (!chatInput.trim() || sendingChat) return;
++  const submitChatQuestion = async (userMsg: string) => {
++    if (!userMsg.trim() || sendingChat) return;
+ 
+-    const userMsg = chatInput.trim();
+     setChatHistory(prev => [...prev, { sender: 'user', text: userMsg }]);
+-    setChatInput('');
+     setSendingChat(true);
+ 
+     try {
+       const data = await apiRequest('/ai/assistant', {
+         method: 'POST',
+-        body: { question: userMsg }
++        body: { 
++          question: userMsg,
++          history: [...chatHistory, { sender: 'user', text: userMsg }]
++        }
+       });
+       if (data.answer) {
+         setChatHistory(prev => [...prev, { sender: 'assistant', text: data.answer }]);
+@@ -166,6 +354,33 @@ export const AIAssistant: React.FC = () => {
+     }
+   };
+ 
++  const handleSendChat = (e: React.FormEvent) => {
++    e.preventDefault();
++    if (!chatInput.trim()) return;
++    submitChatQuestion(chatInput.trim());
++    setChatInput('');
++  };
++
++  const handleAddToWishlist = async (place: { name: string; type: string; country: string }) => {
++    try {
++      setSavedPlaces(prev => ({ ...prev, [place.name]: true }));
++      await apiRequest('/social/wishlist', {
++        method: 'POST',
++        body: { type: place.type, name: place.name, country: place.country }
++      });
++    } catch (err) {
++      console.error('Failed to add to wishlist:', err);
++      setSavedPlaces(prev => ({ ...prev, [place.name]: false }));
++    }
++  };
++
++  const suggestedPrompts = [
++    { label: '🌸 Tokyo Season Guide', text: 'What is the best season to visit Tokyo?' },
++    { label: '🚇 Rome Airport Transit', text: 'How do I get to Termini from Fiumicino Airport in Rome?' },
++    { label: '🍝 Roman Dishes Checklist', text: 'What are the main local food specialties I must eat in Rome?' },
++    { label: '🔒 Solo Safety Tips', text: 'Give me important safety guidelines for solo travelers.' }
++  ];
++
+   return (
+     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 font-sans">
+       
+@@ -345,12 +560,12 @@ export const AIAssistant: React.FC = () => {
+ 
+                   {/* Day-by-day Itinerary tree */}
+                   <div className="space-y-6">
+-                    {(itineraryResult.itinerary || []).map((day: any) => (
++                    {(itineraryResult.itinerary || []).map((day) => (
+                       <div key={day.day} className="border-l-2 border-emerald-500 pl-4 py-1 space-y-3 font-sans">
+                         <h4 className="font-bold text-slate-800 dark:text-slate-100 text-sm">{day.title}</h4>
+                         
+                         <div className="space-y-3">
+-                          {(day.activities || []).map((act: any, idx: number) => (
++                          {(day.activities || []).map((act, idx: number) => (
+                             <div key={idx} className="bg-slate-50 dark:bg-slate-850/40 p-3.5 rounded-xl border border-slate-100/30 text-xs">
+                               <div className="flex items-center gap-1.5 mb-1.5 font-bold text-slate-700 dark:text-slate-300">
+                                 <Clock className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
+@@ -367,7 +582,7 @@ export const AIAssistant: React.FC = () => {
+                   </div>
+ 
+                   {/* Tips box */}
+-                  {(itineraryResult.tips?.length > 0) && (
++                  {itineraryResult.tips && itineraryResult.tips.length > 0 && (
+                     <div className="bg-emerald-50/50 border border-emerald-150 p-4 rounded-2xl dark:bg-emerald-950/20 dark:border-emerald-900/30 text-xs text-slate-650 dark:text-slate-400">
+                       <h4 className="font-bold text-emerald-800 dark:text-emerald-400 mb-2 flex items-center gap-1.5">
+                         <Info className="h-4.5 w-4.5" />
+@@ -401,6 +616,8 @@ export const AIAssistant: React.FC = () => {
+             <div className="flex-1 p-6 overflow-y-auto space-y-4 font-sans text-xs sm:text-sm">
+               {chatHistory.map((msg, idx) => {
+                 const isAssistant = msg.sender === 'assistant';
++                const detectedPlaces = isAssistant ? detectPlaces(msg.text) : [];
++
+                 return (
+                   <div 
+                     key={idx} 
+@@ -411,13 +628,52 @@ export const AIAssistant: React.FC = () => {
+                       {isAssistant ? <Sparkles className="h-4.5 w-4.5" /> : <HelpCircle className="h-4.5 w-4.5" />}
+                     </div>
+ 
+-                    {/* Chat Text */}
+-                    <div className={`p-3.5 rounded-2xl leading-relaxed whitespace-pre-wrap ${
+-                      isAssistant 
+-                        ? 'bg-slate-50 border border-slate-100 dark:bg-slate-850/50 dark:border-slate-800/40 text-slate-700 dark:text-slate-300' 
+-                        : 'bg-emerald-500 text-white font-semibold'
+-                    }`}>
+-                      {msg.text}
++                    <div className="flex flex-col gap-1.5 w-full">
++                      {/* Chat Text */}
++                      <div className={`p-3.5 rounded-2xl leading-relaxed ${
++                        isAssistant 
++                          ? 'bg-slate-50 border border-slate-100 dark:bg-slate-850/50 dark:border-slate-800/40 text-slate-700 dark:text-slate-300' 
++                          : 'bg-emerald-500 text-white font-semibold'
++                      }`}>
++                        {isAssistant ? (
++                          <MarkdownRenderer text={msg.text} />
++                        ) : (
++                          <span className="whitespace-pre-wrap">{msg.text}</span>
++                        )}
++                      </div>
++
++                      {/* Detected Places Actions */}
++                      {isAssistant && detectedPlaces.length > 0 && (
++                        <div className="flex flex-wrap gap-1.5 pl-2 mt-1">
++                          {detectedPlaces.map((place) => {
++                            const isSaved = savedPlaces[place.name];
++                            return (
++                              <button
++                                key={place.name}
++                                onClick={() => handleAddToWishlist(place)}
++                                disabled={isSaved}
++                                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-bold border transition-all ${
++                                  isSaved
++                                    ? 'bg-emerald-50 border-emerald-200 text-emerald-600 dark:bg-emerald-950/20 dark:border-emerald-900/30 dark:text-emerald-400'
++                                    : 'bg-white border-slate-200 hover:bg-slate-50 text-slate-650 hover:text-slate-850 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-350 dark:hover:bg-slate-800'
++                                }`}
++                              >
++                                {isSaved ? (
++                                  <>
++                                    <Check className="h-3.5 w-3.5 text-emerald-500" />
++                                    <span>Added {place.name}!</span>
++                                  </>
++                                ) : (
++                                  <>
++                                    <Bookmark className="h-3.5 w-3.5 text-slate-450 group-hover:text-emerald-500" />
++                                    <span>Add {place.name} to Wishlist</span>
++                                  </>
++                                )}
++                              </button>
++                            );
++                          })}
++                        </div>
++                      )}
+                     </div>
+                   </div>
+                 );
+@@ -430,6 +686,21 @@ export const AIAssistant: React.FC = () => {
+                   <span>Gemini is drafting an answer...</span>
+                 </div>
+               )}
++              <div ref={messagesEndRef} />
++            </div>
++
++            {/* Suggested Prompts Pills */}
++            <div className="px-4 py-2 border-t border-slate-100 dark:border-slate-800/80 bg-slate-50/50 dark:bg-slate-950/10 flex gap-2 overflow-x-auto scrollbar-hide shrink-0 select-none">
++              {suggestedPrompts.map((prompt, idx) => (
++                <button
++                  key={idx}
++                  onClick={() => submitChatQuestion(prompt.text)}
++                  disabled={sendingChat}
++                  className="px-3 py-1.5 rounded-full bg-white border border-slate-200 hover:border-emerald-400 hover:bg-emerald-50/20 dark:bg-slate-900 dark:border-slate-850 dark:hover:border-emerald-500 dark:text-slate-350 text-[10px] font-semibold transition-all whitespace-nowrap cursor-pointer shrink-0 disabled:opacity-50"
++                >
++                  {prompt.label}
++                </button>
++              ))}
+             </div>
+ 
+             {/* Input Form */}
+diff --git a/frontend/src/pages/AuthPage.tsx b/frontend/src/pages/AuthPage.tsx
+index 192f28f..af4fc07 100644
+--- a/frontend/src/pages/AuthPage.tsx
++++ b/frontend/src/pages/AuthPage.tsx
+@@ -9,7 +9,11 @@ export const AuthPage: React.FC = () => {
+   const navigate = useNavigate();
+   const [searchParams] = useSearchParams();
+   
+-  const [isRegister, setIsRegister] = useState(searchParams.get('tab') === 'register');
++  const isRegister = searchParams.get('tab') === 'register';
++  const setIsRegister = (val: boolean) => {
++    navigate(val ? '?tab=register' : '?tab=login', { replace: true });
++  };
++
+   const [username, setUsername] = useState('');
+   const [email, setEmail] = useState('');
+   const [password, setPassword] = useState('');
+@@ -17,11 +21,6 @@ export const AuthPage: React.FC = () => {
+   const [error, setError] = useState<string | null>(null);
+   const [loading, setLoading] = useState(false);
+ 
+-  // Sync isRegister tab from query param changes
+-  useEffect(() => {
+-    setIsRegister(searchParams.get('tab') === 'register');
+-  }, [searchParams]);
+-
+   // If already logged in, redirect to dashboard
+   useEffect(() => {
+     if (user) {
+@@ -58,8 +57,9 @@ export const AuthPage: React.FC = () => {
+         login(data.token, data.user);
+         navigate('/');
+       }
+-    } catch (err: any) {
+-      setError(err.message || 'Authentication failed. Please check your credentials.');
++    } catch (err: unknown) {
++      const errorObject = err as { message?: string };
++      setError(errorObject.message || 'Authentication failed. Please check your credentials.');
+     } finally {
+       setLoading(false);
+     }
+diff --git a/frontend/src/pages/Dashboard.tsx b/frontend/src/pages/Dashboard.tsx
+index 0252433..a663d6b 100644
+--- a/frontend/src/pages/Dashboard.tsx
++++ b/frontend/src/pages/Dashboard.tsx
+@@ -5,16 +5,74 @@ import { apiRequest } from '../services/api';
+ import { InteractiveMap } from '../components/InteractiveMap';
+ import { RecommendationCard, Recommendation } from '../components/RecommendationCard';
+ import { 
+-  Globe, Plane, ShieldAlert, Award, Calendar, Compass, 
+-  MapPin, Heart, MessageSquare, Plus, PlusCircle, CheckCircle2, ListTodo, X
++  Globe, Plane, Award, Calendar, Compass, 
++  MapPin, Heart, MessageSquare, Plus, CheckCircle2, ListTodo, X
+ } from 'lucide-react';
+ 
++interface ProfileStats {
++  countries_visited_count: number;
++  trips_completed_count: number;
++  travel_percentage: string | number;
++  followers_count: number;
++  following_count: number;
++}
++
++interface Badge {
++  id: string;
++  name: string;
++  description: string;
++  icon: string;
++  color: string;
++}
++
++interface Profile {
++  stats: ProfileStats;
++  badges: Badge[];
++}
++
++interface CountryFootprint {
++  country_code: string;
++  status: 'visited' | 'planned' | 'wishlist';
++}
++
++interface UpcomingTrip {
++  id: number;
++  title: string;
++  city?: string;
++  country: string;
++  start_date: string;
++}
++
++interface FeedItem {
++  id: number;
++  feed_type?: 'trip' | 'recommendation';
++  username: string;
++  profile_picture?: string;
++  cover_image?: string;
++  title?: string;
++  description?: string;
++  country?: string;
++  likes_count?: number;
++  comments_count?: number;
++  place_name?: string;
++  rating?: number;
++  review?: string;
++  tips?: string;
++  estimated_cost?: number;
++  how_to_reach?: string;
++  best_time_to_visit?: string;
++  photos?: string;
++  is_liked?: boolean;
++  created_at?: string;
++  category?: string;
++}
++
+ export const Dashboard: React.FC = () => {
+   const { user } = useAuth();
+-  const [profile, setProfile] = useState<any>(null);
+-  const [feed, setFeed] = useState<any[]>([]);
+-  const [countries, setCountries] = useState<any[]>([]);
+-  const [upcomingTrip, setUpcomingTrip] = useState<any>(null);
++  const [profile, setProfile] = useState<Profile | null>(null);
++  const [feed, setFeed] = useState<FeedItem[]>([]);
++  const [countries, setCountries] = useState<CountryFootprint[]>([]);
++  const [upcomingTrip, setUpcomingTrip] = useState<UpcomingTrip | null>(null);
+   const [daysRemaining, setDaysRemaining] = useState<number | null>(null);
+   const [loading, setLoading] = useState(true);
+ 
+@@ -39,7 +97,7 @@ export const Dashboard: React.FC = () => {
+         const resCountries = await apiRequest('/social/wishlist');
+         const wishlistItems = resCountries.wishlist || [];
+         
+-        const mapList: any[] = [];
++        const mapList: CountryFootprint[] = [];
+         const addedCodes = new Set<string>();
+ 
+         // Fetch countries_visited directly from API
+@@ -49,7 +107,7 @@ export const Dashboard: React.FC = () => {
+         // Let's write a simple helper: we fetch trips (which logs countries) and wishlist countries.
+         // Also we can fetch follows and profile to sync.
+         const trips = countriesData.trips || [];
+-        trips.forEach((t: any) => {
++        trips.forEach((t: { country: string; status: string; id: number; start_date?: string }) => {
+           const code = t.country.substring(0, 3).toUpperCase(); // Simple code mapping
+           if (!addedCodes.has(code)) {
+             addedCodes.add(code);
+@@ -60,7 +118,7 @@ export const Dashboard: React.FC = () => {
+           }
+         });
+ 
+-        wishlistItems.forEach((w: any) => {
++        wishlistItems.forEach((w: { type: string; name: string }) => {
+           if (w.type === 'country') {
+             const code = w.name.substring(0, 3).toUpperCase();
+             if (!addedCodes.has(code)) {
+@@ -88,14 +146,14 @@ export const Dashboard: React.FC = () => {
+         setCountries(mapList);
+ 
+         // 4. Find closest upcoming trip
+-        const upcomingTrips = trips.filter((t: any) => t.status === 'planned' && t.start_date);
++        const upcomingTrips = trips.filter((t: { status: string; start_date?: string }) => t.status === 'planned' && t.start_date);
+         if (upcomingTrips.length > 0) {
+           // Sort by start date ascending
+-          upcomingTrips.sort((a: any, b: any) => new Date(a.start_date).getTime() - new Date(b.start_date).getTime());
++          upcomingTrips.sort((a: { start_date?: string }, b: { start_date?: string }) => new Date(a.start_date || '').getTime() - new Date(b.start_date || '').getTime());
+           const nextTrip = upcomingTrips[0];
+           setUpcomingTrip(nextTrip);
+ 
+-          const timeDiff = new Date(nextTrip.start_date).getTime() - new Date().getTime();
++          const timeDiff = new Date(nextTrip.start_date || '').getTime() - new Date().getTime();
+           const days = Math.ceil(timeDiff / (1000 * 3600 * 24));
+           setDaysRemaining(days >= 0 ? days : 0);
+         }
+@@ -301,7 +359,7 @@ export const Dashboard: React.FC = () => {
+                 <p className="text-xs text-slate-400 mt-1">Try following other travelers or share your first travel recommendation!</p>
+               </div>
+             ) : (
+-              feed.map((item: any) => {
++              feed.map((item) => {
+                 // If it is a trip feed item
+                 if (item.feed_type === 'trip') {
+                   return (
+@@ -352,7 +410,7 @@ export const Dashboard: React.FC = () => {
+                 return (
+                   <RecommendationCard 
+                     key={`rec-${item.id}`} 
+-                    rec={item} 
++                    rec={item as unknown as Recommendation} 
+                   />
+                 );
+               })
+diff --git a/frontend/src/pages/FutureTrips.tsx b/frontend/src/pages/FutureTrips.tsx
+index 2653d6f..ab34a3f 100644
+--- a/frontend/src/pages/FutureTrips.tsx
++++ b/frontend/src/pages/FutureTrips.tsx
+@@ -2,9 +2,10 @@ import React, { useState, useEffect } from 'react';
+ import { Link } from 'react-router-dom';
+ import { apiRequest } from '../services/api';
+ import { 
+-  Calendar, Clock, DollarSign, Plus, CheckCircle2, 
+-  ListTodo, Trash2, ArrowRight, Play, CheckSquare, Square
++  Calendar, Clock, CheckCircle2, 
++  ListTodo, Trash2, CheckSquare, Square
+ } from 'lucide-react';
++import { Trip } from '../components/TripCard';
+ 
+ interface TodoItem {
+   id: number;
+@@ -13,8 +14,8 @@ interface TodoItem {
+ }
+ 
+ export const FutureTrips: React.FC = () => {
+-  const [upcomingTrips, setUpcomingTrips] = useState<any[]>([]);
+-  const [selectedTrip, setSelectedTrip] = useState<any>(null);
++  const [upcomingTrips, setUpcomingTrips] = useState<Trip[]>([]);
++  const [selectedTrip, setSelectedTrip] = useState<Trip | null>(null);
+   const [loading, setLoading] = useState(true);
+ 
+   // Checklist state
+@@ -24,26 +25,7 @@ export const FutureTrips: React.FC = () => {
+   // Countdowns
+   const [daysLeft, setDaysLeft] = useState<number | null>(null);
+ 
+-  const fetchUpcomingTrips = async () => {
+-    setLoading(true);
+-    try {
+-      const data = await apiRequest('/trips?status=planned');
+-      setUpcomingTrips(data.trips || []);
+-      if (data.trips?.length > 0) {
+-        handleSelectTrip(data.trips[0]);
+-      }
+-    } catch (err) {
+-      console.error('Failed to load upcoming trips:', err);
+-    } finally {
+-      setLoading(false);
+-    }
+-  };
+-
+-  useEffect(() => {
+-    fetchUpcomingTrips();
+-  }, []);
+-
+-  const handleSelectTrip = (trip: any) => {
++  const handleSelectTrip = (trip: Trip) => {
+     setSelectedTrip(trip);
+     
+     // Load countdown
+@@ -73,6 +55,26 @@ export const FutureTrips: React.FC = () => {
+     }
+   };
+ 
++  const fetchUpcomingTrips = async () => {
++    setLoading(true);
++    try {
++      const data = await apiRequest('/trips?status=planned');
++      setUpcomingTrips(data.trips || []);
++      if (data.trips?.length > 0) {
++        handleSelectTrip(data.trips[0]);
++      }
++    } catch (err) {
++      console.error('Failed to load upcoming trips:', err);
++    } finally {
++      setLoading(false);
++    }
++  };
++
++  useEffect(() => {
++    // eslint-disable-next-line react-hooks/set-state-in-effect
++    fetchUpcomingTrips();
++  }, []); // eslint-disable-line react-hooks/exhaustive-deps
++
+   const handleToggleTodo = (id: number) => {
+     if (!selectedTrip) return;
+     const updated = checklist.map(t => t.id === id ? { ...t, done: !t.done } : t);
+diff --git a/frontend/src/pages/GroupPlanner.tsx b/frontend/src/pages/GroupPlanner.tsx
+index 280f736..3cf4390 100644
+--- a/frontend/src/pages/GroupPlanner.tsx
++++ b/frontend/src/pages/GroupPlanner.tsx
+@@ -2,18 +2,79 @@ import React, { useState, useEffect } from 'react';
+ import { apiRequest } from '../services/api';
+ import { useAuth } from '../context/AuthContext';
+ import { 
+-  Users, UserPlus, Calendar, DollarSign, Plus, Check, X, 
+-  Vote, PlusCircle, CheckCircle, FileText, ArrowRight, Trash2, HelpCircle
++  Users, Check, X, Vote, Trash2, Plus
+ } from 'lucide-react';
+ 
++interface Group {
++  id: number;
++  name: string;
++  description?: string;
++  created_at: string;
++}
++
++interface Invitation {
++  id: number;
++  name: string;
++  description?: string;
++  role: string;
++  status: 'pending' | 'accepted' | 'declined';
++}
++
++interface GroupMember {
++  id: number;
++  group_id: number;
++  user_id: number;
++  username: string;
++  status: 'pending' | 'accepted' | 'declined';
++  profile_picture?: string;
++  role?: string;
++}
++
++interface GroupItinerary {
++  id: number;
++  group_id: number;
++  day_number: number;
++  notes?: string;
++}
++
++interface GroupActivity {
++  id: number;
++  group_id: number;
++  title: string;
++  description?: string;
++  cost: number;
++  votes_count: number;
++}
++
++interface GroupExpense {
++  id: number;
++  group_id: number;
++  paid_by_user_id: number;
++  paid_by_username: string;
++  amount: number;
++  description: string;
++  category: string;
++  created_at: string;
++}
++
++interface GroupDetails {
++  id: number;
++  name: string;
++  description?: string;
++  members: GroupMember[];
++  itineraries: GroupItinerary[];
++  activities: GroupActivity[];
++  expenses: GroupExpense[];
++}
++
+ export const GroupPlanner: React.FC = () => {
+   const { user } = useAuth();
+   
+   // Lists
+-  const [groups, setGroups] = useState<any[]>([]);
+-  const [invitations, setInvitations] = useState<any[]>([]);
+-  const [selectedGroup, setSelectedGroup] = useState<any>(null);
+-  const [groupDetails, setGroupDetails] = useState<any>(null);
++  const [groups, setGroups] = useState<Group[]>([]);
++  const [invitations, setInvitations] = useState<Invitation[]>([]);
++  const [selectedGroup, setSelectedGroup] = useState<Group | null>(null);
++  const [groupDetails, setGroupDetails] = useState<GroupDetails | null>(null);
+   const [loading, setLoading] = useState(true);
+   const [loadingDetails, setLoadingDetails] = useState(false);
+ 
+@@ -44,28 +105,7 @@ export const GroupPlanner: React.FC = () => {
+   const [activityCost, setActivityCost] = useState('');
+   const [addingActivity, setAddingActivity] = useState(false);
+ 
+-  const fetchGroups = async () => {
+-    try {
+-      const data = await apiRequest('/groups');
+-      setGroups(data.groups || []);
+-      setInvitations(data.invitations || []);
+-      
+-      // Auto select first group if none selected
+-      if (data.groups?.length > 0 && !selectedGroup) {
+-        handleSelectGroup(data.groups[0]);
+-      }
+-    } catch (err) {
+-      console.error('Failed to load groups:', err);
+-    } finally {
+-      setLoading(false);
+-    }
+-  };
+-
+-  useEffect(() => {
+-    fetchGroups();
+-  }, []);
+-
+-  const handleSelectGroup = async (group: any) => {
++  const handleSelectGroup = async (group: Group) => {
+     setSelectedGroup(group);
+     setLoadingDetails(true);
+     setInviteMessage(null);
+@@ -89,6 +129,28 @@ export const GroupPlanner: React.FC = () => {
+     }
+   };
+ 
++  const fetchGroups = async () => {
++    try {
++      const data = await apiRequest('/groups');
++      setGroups(data.groups || []);
++      setInvitations(data.invitations || []);
++      
++      // Auto select first group if none selected
++      if (data.groups?.length > 0 && !selectedGroup) {
++        handleSelectGroup(data.groups[0]);
++      }
++    } catch (err) {
++      console.error('Failed to load groups:', err);
++    } finally {
++      setLoading(false);
++    }
++  };
++
++  useEffect(() => {
++    // eslint-disable-next-line react-hooks/set-state-in-effect
++    fetchGroups();
++  }, []); // eslint-disable-line react-hooks/exhaustive-deps
++
+   const handleCreateGroup = async (e: React.FormEvent) => {
+     e.preventDefault();
+     if (!newGroupName.trim()) return;
+@@ -138,8 +200,9 @@ export const GroupPlanner: React.FC = () => {
+       // Refresh details to show pending list
+       const details = await apiRequest(`/groups/${selectedGroup.id}`);
+       setGroupDetails(details);
+-    } catch (err: any) {
+-      setInviteMessage(err.message || 'Failed to send invitation.');
++    } catch (err: unknown) {
++      const errorObject = err as { message?: string };
++      setInviteMessage(errorObject.message || 'Failed to send invitation.');
+     } finally {
+       setInviting(false);
+     }
+@@ -187,11 +250,13 @@ export const GroupPlanner: React.FC = () => {
+         }
+       });
+       // Refresh local data
+-      const updatedList = groupDetails.itineraries.map((it: any) => {
+-        if (it.day_number === selectedDayNum) return { ...it, notes: dayNotes };
+-        return it;
+-      });
+-      setGroupDetails({ ...groupDetails, itineraries: updatedList });
++      if (groupDetails) {
++        const updatedList = groupDetails.itineraries.map((it) => {
++          if (it.day_number === selectedDayNum) return { ...it, notes: dayNotes };
++          return it;
++        });
++        setGroupDetails({ ...groupDetails, itineraries: updatedList });
++      }
+     } catch (err) {
+       console.error('Save group itinerary notes failed:', err);
+     } finally {
+@@ -235,7 +300,7 @@ export const GroupPlanner: React.FC = () => {
+         body: { activityId }
+       });
+       if (data.activity && groupDetails) {
+-        const updatedActivities = groupDetails.activities.map((a: any) => {
++        const updatedActivities = groupDetails.activities.map((a) => {
+           if (a.id === activityId) return { ...a, votes_count: data.activity.votes_count };
+           return a;
+         });
+@@ -247,7 +312,7 @@ export const GroupPlanner: React.FC = () => {
+   };
+ 
+   const handleDeleteExpense = async (expId: number) => {
+-    if (!window.confirm('Delete this expense?')) return;
++    if (!window.confirm('Delete this expense?') || !selectedGroup) return;
+     try {
+       await apiRequest(`/expenses/${expId}`, { method: 'DELETE' });
+       // Refresh group details
+@@ -263,26 +328,26 @@ export const GroupPlanner: React.FC = () => {
+     if (!groupDetails?.expenses) return { totalSpent: 0, balancesList: [] };
+     
+     let totalSpent = 0;
+-    groupDetails.expenses.forEach((e: any) => {
+-      totalSpent += parseFloat(e.amount || '0');
++    groupDetails.expenses.forEach((e) => {
++      totalSpent += parseFloat(String(e.amount) || '0');
+     });
+ 
+     // We can parse or display the backend-calculated balances.
+     // Let's compute group member balances here for instant react responsiveness:
+     const balances: { [username: string]: number } = {};
+-    const activeMembers = groupDetails.members.filter((m: any) => m.status === 'accepted');
++    const activeMembers = groupDetails.members.filter((m) => m.status === 'accepted');
+     
+-    activeMembers.forEach((m: any) => {
++    activeMembers.forEach((m) => {
+       balances[m.username] = 0;
+     });
+ 
+     const share = activeMembers.length > 0 ? totalSpent / activeMembers.length : 0;
+ 
+-    groupDetails.expenses.forEach((e: any) => {
+-      const amt = parseFloat(e.amount || '0');
++    groupDetails.expenses.forEach((e) => {
++      const amt = parseFloat(String(e.amount) || '0');
+       const payer = e.paid_by_username;
+       
+-      activeMembers.forEach((m: any) => {
++      activeMembers.forEach((m) => {
+         if (m.username === payer) {
+           balances[payer] += (amt - share);
+         } else if (balances[m.username] !== undefined) {
+@@ -412,7 +477,7 @@ export const GroupPlanner: React.FC = () => {
+                       <div className="flex items-center gap-1.5 mt-4">
+                         <span className="text-[10px] uppercase font-bold text-slate-400 mr-2">Members:</span>
+                         <div className="flex -space-x-2.5 overflow-hidden">
+-                          {groupDetails.members.map((m: any) => (
++                          {groupDetails.members.map((m) => (
+                             <img
+                               key={m.id}
+                               src={m.profile_picture || 'https://api.dicebear.com/7.x/adventurer/svg?seed=avatar'}
+@@ -532,7 +597,7 @@ export const GroupPlanner: React.FC = () => {
+                           {groupDetails.activities?.length === 0 ? (
+                             <p className="text-xs text-slate-400 text-center py-6">No proposed activities yet. Suggest one!</p>
+                           ) : (
+-                            groupDetails.activities.map((act: any) => (
++                            groupDetails.activities.map((act) => (
+                               <div key={act.id} className="flex justify-between items-center p-3 rounded-xl bg-slate-50 dark:bg-slate-800/40 text-xs">
+                                 <div>
+                                   <span className="font-bold text-slate-750 dark:text-slate-200 block">{act.title}</span>
+@@ -567,7 +632,7 @@ export const GroupPlanner: React.FC = () => {
+                         </div>
+ 
+                         <div className="space-y-2 max-h-[180px] overflow-y-auto pr-1">
+-                          {balancesList.map((bal: any, idx: number) => {
++                          {balancesList.map((bal, idx: number) => {
+                             const isPositive = bal.balance > 0;
+                             const isZero = bal.balance === 0;
+ 
+@@ -642,7 +707,7 @@ export const GroupPlanner: React.FC = () => {
+                           {groupDetails.expenses?.length === 0 ? (
+                             <p className="text-xs text-slate-400 text-center py-6">No expenses logged yet.</p>
+                           ) : (
+-                            groupDetails.expenses.map((exp: any) => (
++                            groupDetails.expenses.map((exp) => (
+                               <div key={exp.id} className="flex justify-between items-center p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/40 text-xs border border-transparent hover:border-slate-200/40 transition-all">
+                                 <div>
+                                   <span className="font-bold text-slate-800 dark:text-slate-200 block leading-tight">{exp.description}</span>
+diff --git a/frontend/src/pages/LandingPage.tsx b/frontend/src/pages/LandingPage.tsx
+index f167870..52bc6b4 100644
+--- a/frontend/src/pages/LandingPage.tsx
++++ b/frontend/src/pages/LandingPage.tsx
+@@ -1,6 +1,6 @@
+ import React from 'react';
+ import { Link } from 'react-router-dom';
+-import { Compass, MapPin, Sparkles, Share2, DollarSign, Globe, ArrowRight } from 'lucide-react';
++import { Compass, Sparkles, Share2, DollarSign, Globe, ArrowRight } from 'lucide-react';
+ import { useAuth } from '../context/AuthContext';
+ 
+ export const LandingPage: React.FC = () => {
+diff --git a/frontend/src/pages/PastTrips.tsx b/frontend/src/pages/PastTrips.tsx
+index f3b5776..a79ffe5 100644
+--- a/frontend/src/pages/PastTrips.tsx
++++ b/frontend/src/pages/PastTrips.tsx
+@@ -4,20 +4,29 @@ import { apiRequest } from '../services/api';
+ import { TripCard, Trip } from '../components/TripCard';
+ import { LeafletMap } from '../components/LeafletMap';
+ import { 
+-  Plus, Calendar, MapPin, Grid, List, Map, 
+-  Image as ImageIcon, DollarSign, X, Check, FileText, Compass
++  Plus, Grid, List, Map, 
++  X, Check, Compass
+ } from 'lucide-react';
+ 
+ export const PastTrips: React.FC = () => {
+   const [searchParams, setSearchParams] = useSearchParams();
+-  const initialAction = searchParams.get('action') === 'new';
+ 
+   const [trips, setTrips] = useState<Trip[]>([]);
+   const [loading, setLoading] = useState(true);
+   const [viewMode, setViewMode] = useState<'timeline' | 'gallery' | 'map'>('timeline');
+ 
+-  // Form states
+-  const [showForm, setShowForm] = useState(initialAction);
++  // Form states (derived from URL query parameters)
++  const showForm = searchParams.get('action') === 'new';
++  const setShowForm = (val: boolean) => {
++    const newParams = new URLSearchParams(searchParams);
++    if (val) {
++      newParams.set('action', 'new');
++    } else {
++      newParams.delete('action');
++    }
++    setSearchParams(newParams, { replace: true });
++  };
++
+   const [title, setTitle] = useState('');
+   const [country, setCountry] = useState('');
+   const [city, setCity] = useState('');
+@@ -43,22 +52,12 @@ export const PastTrips: React.FC = () => {
+   };
+ 
+   useEffect(() => {
++    // eslint-disable-next-line react-hooks/set-state-in-effect
+     fetchTrips();
+   }, []);
+ 
+-  // Update showForm state if query parameter changes
+-  useEffect(() => {
+-    if (searchParams.get('action') === 'new') {
+-      setShowForm(true);
+-    }
+-  }, [searchParams]);
+-
+   const handleCloseForm = () => {
+     setShowForm(false);
+-    // remove action query param
+-    const newParams = new URLSearchParams(searchParams);
+-    newParams.delete('action');
+-    setSearchParams(newParams);
+   };
+ 
+   const handleCreateTrip = async (e: React.FormEvent) => {
+@@ -104,8 +103,9 @@ export const PastTrips: React.FC = () => {
+         handleCloseForm();
+         fetchTrips();
+       }
+-    } catch (err: any) {
+-      setError(err.message || 'Failed to log trip. Please check details.');
++    } catch (err: unknown) {
++      const errorObject = err as { message?: string };
++      setError(errorObject.message || 'Failed to log trip. Please check details.');
+     } finally {
+       setSubmitting(false);
+     }
+@@ -121,6 +121,17 @@ export const PastTrips: React.FC = () => {
+     }
+   };
+ 
++  // Hash function to get deterministic coordinates for map view (React purity rule)
++  const getDeterministicCoords = (name: string) => {
++    let hash = 0;
++    for (let i = 0; i < name.length; i++) {
++      hash = name.charCodeAt(i) + ((hash << 5) - hash);
++    }
++    const lat = 30 + (Math.abs(hash) % 20);
++    const lng = -30 + (Math.abs(hash >> 8) % 60);
++    return { lat, lng };
++  };
++
+   // Compile coordinates list for Leaflet view
+   const mapLocations = trips
+     .filter(t => t.status === 'past') // Only pin actual visited trips
+@@ -142,7 +153,7 @@ export const PastTrips: React.FC = () => {
+       };
+ 
+       const code = t.country.substring(0, 3).toUpperCase();
+-      const coord = locationsCenter[code] || { lat: 30 + Math.random() * 20, lng: -30 + Math.random() * 60 };
++      const coord = locationsCenter[code] || getDeterministicCoords(t.country);
+       
+       return {
+         id: t.id,
+@@ -157,7 +168,7 @@ export const PastTrips: React.FC = () => {
+   const galleryPhotos: { id: number, tripId: number, url: string, caption: string, title: string }[] = [];
+   trips.forEach((t) => {
+     if (t.photos && t.photos.length > 0) {
+-      t.photos.forEach((ph: any) => {
++      t.photos.forEach((ph: { id: number; photo_url: string; caption?: string }) => {
+         galleryPhotos.push({
+           id: ph.id,
+           tripId: t.id,
+@@ -169,7 +180,7 @@ export const PastTrips: React.FC = () => {
+     } else if (t.status === 'past') {
+       // Fallback: use cover image as gallery item
+       galleryPhotos.push({
+-        id: Math.random(),
++        id: t.id,
+         tripId: t.id,
+         url: t.cover_image,
+         caption: t.city ? `${t.city}, ${t.country}` : t.country,
+@@ -324,7 +335,7 @@ export const PastTrips: React.FC = () => {
+                   <label className="text-[10px] uppercase font-bold text-slate-500">Trip Status</label>
+                   <select
+                     value={status}
+-                    onChange={(e) => setStatus(e.target.value as any)}
++                    onChange={(e) => setStatus(e.target.value as 'past' | 'planned' | 'wishlist')}
+                     className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs dark:bg-slate-950 dark:border-slate-850 dark:text-white"
+                   >
+                     <option value="past">Completed Trip (Past)</option>
+diff --git a/frontend/src/pages/ProfilePage.tsx b/frontend/src/pages/ProfilePage.tsx
+index 54c2d74..2101ecf 100644
+--- a/frontend/src/pages/ProfilePage.tsx
++++ b/frontend/src/pages/ProfilePage.tsx
+@@ -2,19 +2,51 @@ import React, { useState, useEffect } from 'react';
+ import { useSearchParams, Link } from 'react-router-dom';
+ import { useAuth } from '../context/AuthContext';
+ import { apiRequest } from '../services/api';
+-import { TripCard } from '../components/TripCard';
++import { TripCard, Trip } from '../components/TripCard';
+ import { 
+   Globe, Compass, Award, MapPin, UserPlus, UserMinus, 
+   Map, CheckSquare, Square, ChevronRight 
+ } from 'lucide-react';
+ 
++interface ProfileStats {
++  countries_visited_count: number;
++  trips_completed_count: number;
++  travel_percentage: string | number;
++  followers_count: number;
++  following_count: number;
++}
++
++interface Badge {
++  id: string;
++  name: string;
++  description: string;
++  icon: string;
++  color: string;
++}
++
++interface Profile {
++  id: number;
++  username: string;
++  email: string;
++  bio?: string;
++  home_country?: string;
++  profile_picture?: string;
++  is_following: boolean;
++  stats: ProfileStats;
++  badges: Badge[];
++}
++
++interface ProfileTrip extends Trip {
++  user_id: number;
++}
++
+ export const ProfilePage: React.FC = () => {
+   const { user: currentUser } = useAuth();
+   const [searchParams] = useSearchParams();
+   const usernameParam = searchParams.get('username') || currentUser?.username;
+ 
+-  const [profile, setProfile] = useState<any>(null);
+-  const [trips, setTrips] = useState<any[]>([]);
++  const [profile, setProfile] = useState<Profile | null>(null);
++  const [trips, setTrips] = useState<ProfileTrip[]>([]);
+   const [loading, setLoading] = useState(true);
+   const [isFollowing, setIsFollowing] = useState(false);
+ 
+@@ -53,13 +85,13 @@ export const ProfilePage: React.FC = () => {
+         const tripsData = await apiRequest(`/trips`);
+         // Filter trips belonging to this profile's user
+         const targetUserId = profileData.profile.id;
+-        const filteredTrips = (tripsData.trips || []).filter((t: any) => t.user_id === targetUserId);
++        const filteredTrips = (tripsData.trips || []).filter((t: ProfileTrip) => t.user_id === targetUserId);
+         setTrips(filteredTrips);
+ 
+         // Set checked off country codes
+         // Fetch user countries visited status
+         // Simply pull them from user trips in this profile view
+-        const codes = filteredTrips.filter((t: any) => t.status === 'past').map((t: any) => t.country.substring(0, 3).toUpperCase());
++        const codes = filteredTrips.filter((t: ProfileTrip) => t.status === 'past').map((t: ProfileTrip) => t.country.substring(0, 3).toUpperCase());
+         setUserVisitedCodes(Array.from(new Set(codes)));
+       } catch (err) {
+         console.error('Failed to load profile:', err);
+@@ -82,16 +114,34 @@ export const ProfilePage: React.FC = () => {
+           method: 'POST',
+           body: { userIdToUnfollow: profile.id }
+         });
+-        profile.stats.followers_count = Math.max(0, profile.stats.followers_count - 1);
++        setProfile(prev => {
++          if (!prev) return null;
++          return {
++            ...prev,
++            stats: {
++              ...prev.stats,
++              followers_count: Math.max(0, prev.stats.followers_count - 1)
++            }
++          };
++        });
+       } else {
+         // Follow
+         await apiRequest('/social/follow', {
+           method: 'POST',
+           body: { userIdToFollow: profile.id }
+         });
+-        profile.stats.followers_count = profile.stats.followers_count + 1;
++        setProfile(prev => {
++          if (!prev) return null;
++          return {
++            ...prev,
++            stats: {
++              ...prev.stats,
++              followers_count: prev.stats.followers_count + 1
++            }
++          };
++        });
+       }
+-    } catch (err) {
++    } catch {
+       // Revert state
+       setIsFollowing(profile.is_following);
+     }
+@@ -247,7 +297,7 @@ export const ProfilePage: React.FC = () => {
+               Achievements
+             </h3>
+             <div className="grid grid-cols-1 gap-3.5">
+-              {profile.badges.map((badge: any) => (
++              {profile.badges.map((badge) => (
+                 <div key={badge.id} className="flex items-center gap-3 p-3 rounded-xl bg-slate-50 dark:bg-slate-800/40">
+                   <div className={`p-2.5 rounded-xl shrink-0 ${badge.color || 'bg-slate-100 text-slate-600'}`}>
+                     <Globe className="h-5.5 w-5.5" />
+diff --git a/frontend/src/pages/RecommendationsFeed.tsx b/frontend/src/pages/RecommendationsFeed.tsx
+index d22baaa..48c0dad 100644
+--- a/frontend/src/pages/RecommendationsFeed.tsx
++++ b/frontend/src/pages/RecommendationsFeed.tsx
+@@ -2,8 +2,7 @@ import React, { useState, useEffect } from 'react';
+ import { apiRequest } from '../services/api';
+ import { RecommendationCard, Recommendation } from '../components/RecommendationCard';
+ import { 
+-  Award, Search, Plus, Filter, X, 
+-  MapPin, Star, Compass, AlertCircle
++  Search, Plus, X, Star, Compass, AlertCircle
+ } from 'lucide-react';
+ 
+ export const RecommendationsFeed: React.FC = () => {
+@@ -62,6 +61,7 @@ export const RecommendationsFeed: React.FC = () => {
+       fetchRecommendations();
+     }, 300);
+     return () => clearTimeout(timer);
++    // eslint-disable-next-line react-hooks/exhaustive-deps
+   }, [search, selectedCategory]);
+ 
+   const handleCreateRecommendation = async (e: React.FormEvent) => {
+@@ -107,8 +107,9 @@ export const RecommendationsFeed: React.FC = () => {
+       setPhotos('');
+       setShowForm(false);
+       fetchRecommendations();
+-    } catch (err: any) {
+-      setError(err.message || 'Failed to submit recommendation.');
++    } catch (err: unknown) {
++      const errorObject = err as { message?: string };
++      setError(errorObject.message || 'Failed to submit recommendation.');
+     } finally {
+       setSubmitting(false);
+     }
+diff --git a/frontend/src/pages/Settings.tsx b/frontend/src/pages/Settings.tsx
+index 5b8c620..c691cf9 100644
+--- a/frontend/src/pages/Settings.tsx
++++ b/frontend/src/pages/Settings.tsx
+@@ -1,7 +1,6 @@
+ import React, { useState } from 'react';
+ import { useAuth } from '../context/AuthContext';
+-import { apiRequest } from '../services/api';
+-import { Save, User as UserIcon, Globe, Info, Heart, CheckCircle2 } from 'lucide-react';
++import { Save, User as UserIcon, Globe, CheckCircle2 } from 'lucide-react';
+ 
+ export const Settings: React.FC = () => {
+   const { user, updateUser } = useAuth();
+diff --git a/frontend/src/pages/TripDetails.tsx b/frontend/src/pages/TripDetails.tsx
+index 6b3c275..10c73a4 100644
+--- a/frontend/src/pages/TripDetails.tsx
++++ b/frontend/src/pages/TripDetails.tsx
+@@ -2,21 +2,55 @@ import React, { useState, useEffect } from 'react';
+ import { useParams, Link } from 'react-router-dom';
+ import { apiRequest } from '../services/api';
+ import { 
+-  Calendar, MapPin, DollarSign, Image as ImageIcon, 
+-  Clock, Plus, ChevronRight, Save, Trash2, ArrowLeft,
++  Calendar, MapPin, Image as ImageIcon, 
++  Clock, Save, Trash2, ArrowLeft,
+   Utensils, Compass, Hotel, Landmark, Car, HelpCircle
+ } from 'lucide-react';
+ 
++interface Itinerary {
++  id: number;
++  day_number: number;
++  date?: string;
++  notes?: string;
++}
++
++interface Expense {
++  id: number;
++  amount: number;
++  description: string;
++  category: string;
++}
++
++interface Photo {
++  id: number;
++  photo_url: string;
++  caption?: string;
++}
++
++interface Trip {
++  id: number;
++  title: string;
++  city?: string;
++  country: string;
++  start_date?: string;
++  end_date?: string;
++  budget: number;
++  cover_image?: string;
++  itineraries: Itinerary[];
++  expenses: Expense[];
++  photos: Photo[];
++}
++
+ export const TripDetails: React.FC = () => {
+   const { id } = useParams<{ id: string }>();
+-  const [trip, setTrip] = useState<any>(null);
++  const [trip, setTrip] = useState<Trip | null>(null);
+   const [loading, setLoading] = useState(true);
+   
+   // Tab selector
+   const [activeTab, setActiveTab] = useState<'itinerary' | 'expenses' | 'photos'>('itinerary');
+ 
+   // Interactive Itinerary Form
+-  const [selectedDay, setSelectedDay] = useState<any>(null);
++  const [selectedDay, setSelectedDay] = useState<Itinerary | null>(null);
+   const [itineraryNotes, setItineraryNotes] = useState('');
+   const [savingItinerary, setSavingItinerary] = useState(false);
+ 
+@@ -48,17 +82,18 @@ export const TripDetails: React.FC = () => {
+   };
+ 
+   useEffect(() => {
++    // eslint-disable-next-line react-hooks/set-state-in-effect
+     loadTripDetails();
+-  }, [id]);
++  }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
+ 
+-  const handleDaySelect = (day: any) => {
++  const handleDaySelect = (day: Itinerary) => {
+     setSelectedDay(day);
+     setItineraryNotes(day.notes || '');
+   };
+ 
+   // Itinerary save
+   const handleSaveItinerary = async () => {
+-    if (!selectedDay) return;
++    if (!selectedDay || !trip) return;
+     setSavingItinerary(true);
+     try {
+       await apiRequest('/trips/itinerary', {
+@@ -71,7 +106,7 @@ export const TripDetails: React.FC = () => {
+         }
+       });
+       // Refresh local data
+-      const updatedItineraryList = trip.itineraries.map((it: any) => {
++      const updatedItineraryList = trip.itineraries.map((it: Itinerary) => {
+         if (it.day_number === selectedDay.day_number) {
+           return { ...it, notes: itineraryNotes };
+         }
+@@ -90,7 +125,7 @@ export const TripDetails: React.FC = () => {
+   // Expense save
+   const handleAddExpense = async (e: React.FormEvent) => {
+     e.preventDefault();
+-    if (!expAmount || !expDesc || !expCategory) return;
++    if (!expAmount || !expDesc || !expCategory || !trip) return;
+     setAddingExpense(true);
+ 
+     try {
+@@ -121,12 +156,12 @@ export const TripDetails: React.FC = () => {
+ 
+   // Expense delete
+   const handleDeleteExpense = async (expId: number) => {
+-    if (!window.confirm('Delete this expense?')) return;
++    if (!window.confirm('Delete this expense?') || !trip) return;
+     try {
+       await apiRequest(`/expenses/${expId}`, { method: 'DELETE' });
+       setTrip({
+         ...trip,
+-        expenses: trip.expenses.filter((e: any) => e.id !== expId)
++        expenses: trip.expenses.filter((e: Expense) => e.id !== expId)
+       });
+     } catch (err) {
+       console.error('Delete expense failed:', err);
+@@ -136,7 +171,7 @@ export const TripDetails: React.FC = () => {
+   // Photo save
+   const handleAddPhoto = async (e: React.FormEvent) => {
+     e.preventDefault();
+-    if (!photoUrl) return;
++    if (!photoUrl || !trip) return;
+     setAddingPhoto(true);
+ 
+     try {
+@@ -171,8 +206,8 @@ export const TripDetails: React.FC = () => {
+       'Food': 0, 'Lodging': 0, 'Transport': 0, 'Activities': 0, 'Shopping': 0, 'Other': 0
+     };
+ 
+-    expensesList.forEach((exp: any) => {
+-      const val = parseFloat(exp.amount || '0');
++    expensesList.forEach((exp: Expense) => {
++      const val = typeof exp.amount === 'number' ? exp.amount : parseFloat((exp.amount as string) || '0');
+       totalSpent += val;
+       if (categories[exp.category] !== undefined) {
+         categories[exp.category] += val;
+@@ -202,11 +237,10 @@ export const TripDetails: React.FC = () => {
+   }
+ 
+   const { totalSpent, categories } = getExpenseMetrics();
+-  const remainingBudget = trip.budget - totalSpent;
+   const budgetRatio = trip.budget > 0 ? (totalSpent / trip.budget) * 100 : 0;
+ 
+   // Icon mapping for categories
+-  const categoryIcons: { [key: string]: any } = {
++  const categoryIcons: Record<string, React.ComponentType<{ className?: string }>> = {
+     'Food': Utensils,
+     'Lodging': Hotel,
+     'Transport': Car,
+@@ -321,7 +355,7 @@ export const TripDetails: React.FC = () => {
+                 {trip.itineraries?.length === 0 ? (
+                   <p className="text-xs text-slate-400 text-center py-6">No dates scheduled. Update start and end dates to generate days!</p>
+                 ) : (
+-                  trip.itineraries.map((day: any) => (
++                  trip.itineraries.map((day: Itinerary) => (
+                     <button
+                       key={day.id}
+                       onClick={() => handleDaySelect(day)}
+@@ -511,7 +545,7 @@ export const TripDetails: React.FC = () => {
+                   {trip.expenses?.length === 0 ? (
+                     <p className="text-xs text-slate-400 text-center py-8">No expenses logged yet. Save receipts above!</p>
+                   ) : (
+-                    trip.expenses.map((exp: any) => {
++                    trip.expenses.map((exp: Expense) => {
+                       const CatIcon = categoryIcons[exp.category] || HelpCircle;
+                       const catColor = categoryColors[exp.category];
+ 
+@@ -602,7 +636,7 @@ export const TripDetails: React.FC = () => {
+                 </div>
+               ) : (
+                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+-                  {trip.photos.map((ph: any) => (
++                  {trip.photos.map((ph: Photo) => (
+                     <div key={ph.id} className="relative group aspect-square rounded-xl overflow-hidden bg-slate-100 border border-slate-150">
+                       <img
+                         src={ph.photo_url}
+diff --git a/frontend/src/services/api.ts b/frontend/src/services/api.ts
+index 8056d3d..c8360a5 100644
+--- a/frontend/src/services/api.ts
++++ b/frontend/src/services/api.ts
+@@ -1,3 +1,4 @@
++/* eslint-disable @typescript-eslint/no-explicit-any */
+ export const API_BASE_URL = 'http://localhost:5000/api';
+ 
+ export interface ApiOptions {

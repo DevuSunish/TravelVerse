@@ -1,15 +1,193 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { apiRequest } from '../services/api';
 import { 
   Sparkles, Compass, HelpCircle, Send, Plus, 
-  DollarSign, Check, AlertCircle, ChevronDown, ChevronRight,
-  Utensils, Globe, Shield, Calendar, Info, Clock
+  DollarSign, Check, Info, Clock, Bookmark
 } from 'lucide-react';
 
 interface ChatMessage {
   sender: 'user' | 'assistant';
   text: string;
+}
+
+// Places catalog for interactive wishlist suggestions
+const PLACE_CATALOG = [
+  // Rome
+  { name: 'Colosseum', type: 'attraction', country: 'Italy' },
+  { name: 'Trevi Fountain', type: 'attraction', country: 'Italy' },
+  { name: 'Pantheon', type: 'attraction', country: 'Italy' },
+  { name: 'Vatican Museums', type: 'attraction', country: 'Italy' },
+  { name: 'Spanish Steps', type: 'attraction', country: 'Italy' },
+  { name: 'Rome', type: 'city', country: 'Italy' },
+  // Tokyo
+  { name: 'Shibuya Crossing', type: 'attraction', country: 'Japan' },
+  { name: 'Senso-ji Temple', type: 'attraction', country: 'Japan' },
+  { name: 'Meiji Jingu Shrine', type: 'attraction', country: 'Japan' },
+  { name: 'TeamLab Planets', type: 'attraction', country: 'Japan' },
+  { name: 'Mount Fuji', type: 'attraction', country: 'Japan' },
+  { name: 'Ichiran Ramen Shibuya', type: 'attraction', country: 'Japan' },
+  { name: 'Tokyo', type: 'city', country: 'Japan' },
+  // Paris
+  { name: 'Eiffel Tower', type: 'attraction', country: 'France' },
+  { name: 'Louvre Museum', type: 'attraction', country: 'France' },
+  { name: 'Montmartre', type: 'attraction', country: 'France' },
+  { name: 'Palace of Versailles', type: 'attraction', country: 'France' },
+  { name: 'Seine River Cruise', type: 'attraction', country: 'France' },
+  { name: 'Paris', type: 'city', country: 'France' },
+  // London
+  { name: 'British Museum', type: 'attraction', country: 'United Kingdom' },
+  { name: 'Tower of London', type: 'attraction', country: 'United Kingdom' },
+  { name: 'London Eye', type: 'attraction', country: 'United Kingdom' },
+  { name: 'Westminster Abbey', type: 'attraction', country: 'United Kingdom' },
+  { name: 'Borough Market', type: 'attraction', country: 'United Kingdom' },
+  { name: 'London', type: 'city', country: 'United Kingdom' }
+];
+
+const detectPlaces = (text: string) => {
+  const detected: typeof PLACE_CATALOG = [];
+  const lowerText = text.toLowerCase();
+  
+  PLACE_CATALOG.forEach(place => {
+    if (lowerText.includes(place.name.toLowerCase())) {
+      // Check if place is already added to avoid duplicates
+      if (!detected.some(p => p.name === place.name)) {
+        detected.push(place);
+      }
+    }
+  });
+  
+  return detected.slice(0, 3);
+};
+
+// Custom Markdown parser rendering styled HTML elements
+const MarkdownRenderer: React.FC<{ text: string }> = ({ text }) => {
+  if (!text) return null;
+
+  const lines = text.split('\n');
+  const elements: React.ReactNode[] = [];
+  let inList = false;
+  let listItems: React.ReactNode[] = [];
+
+  const parseInlineMarkdown = (lineText: string) => {
+    const parts = [];
+    const regex = /(\*\*.*?\*\*|`.*?`)/g;
+    let match;
+    let lastIndex = 0;
+    
+    while ((match = regex.exec(lineText)) !== null) {
+      const matchIndex = match.index;
+      if (matchIndex > lastIndex) {
+        parts.push(lineText.substring(lastIndex, matchIndex));
+      }
+      
+      const matchedStr = match[0];
+      if (matchedStr.startsWith('**') && matchedStr.endsWith('**')) {
+        parts.push(<strong key={matchIndex} className="font-extrabold text-slate-900 dark:text-white">{matchedStr.slice(2, -2)}</strong>);
+      } else if (matchedStr.startsWith('`') && matchedStr.endsWith('`')) {
+        parts.push(<code key={matchIndex} className="px-1.5 py-0.5 bg-slate-150 dark:bg-slate-800 rounded font-mono text-emerald-600 dark:text-emerald-400 text-xs">{matchedStr.slice(1, -1)}</code>);
+      }
+      lastIndex = regex.lastIndex;
+    }
+    
+    if (lastIndex < lineText.length) {
+      parts.push(lineText.substring(lastIndex));
+    }
+    
+    return parts.length > 0 ? parts : lineText;
+  };
+
+  const flushList = (key: number) => {
+    if (listItems.length > 0) {
+      elements.push(
+        <ul key={`ul-${key}`} className="list-disc pl-5 my-2 space-y-1">
+          {listItems}
+        </ul>
+      );
+      listItems = [];
+    }
+  };
+
+  lines.forEach((line, idx) => {
+    const trimmed = line.trim();
+
+    if (trimmed.startsWith('### ')) {
+      flushList(idx);
+      elements.push(
+        <h4 key={idx} className="text-sm font-extrabold text-slate-800 dark:text-slate-100 mt-4 mb-2 first:mt-1 font-serif">
+          {parseInlineMarkdown(trimmed.substring(4))}
+        </h4>
+      );
+    } else if (trimmed.startsWith('## ')) {
+      flushList(idx);
+      elements.push(
+        <h3 key={idx} className="text-base font-extrabold text-slate-800 dark:text-slate-100 mt-4 mb-2 first:mt-1 font-serif">
+          {parseInlineMarkdown(trimmed.substring(3))}
+        </h3>
+      );
+    } else if (trimmed.startsWith('# ')) {
+      flushList(idx);
+      elements.push(
+        <h2 key={idx} className="text-lg font-extrabold text-slate-800 dark:text-slate-100 mt-4 mb-2 first:mt-1 font-serif">
+          {parseInlineMarkdown(trimmed.substring(2))}
+        </h2>
+      );
+    } else if (trimmed.startsWith('* ') || trimmed.startsWith('- ')) {
+      inList = true;
+      listItems.push(
+        <li key={idx} className="text-xs sm:text-sm text-slate-650 dark:text-slate-350 leading-relaxed">
+          {parseInlineMarkdown(trimmed.substring(2))}
+        </li>
+      );
+    } else {
+      if (inList) {
+        flushList(idx);
+        inList = false;
+      }
+      
+      if (trimmed === '') {
+        elements.push(<div key={idx} className="h-2" />);
+      } else {
+        elements.push(
+          <p key={idx} className="text-xs sm:text-sm text-slate-650 dark:text-slate-350 leading-relaxed mb-1.5 last:mb-0">
+            {parseInlineMarkdown(line)}
+          </p>
+        );
+      }
+    }
+  });
+
+  flushList(lines.length);
+
+  return <div className="space-y-1.5">{elements}</div>;
+};
+
+interface Activity {
+  time: string;
+  title: string;
+  description: string;
+}
+
+interface ItineraryDay {
+  day: number;
+  title: string;
+  activities: Activity[];
+}
+
+interface EstimatedCost {
+  total: number;
+  breakdown: Record<string, number>;
+}
+
+interface ItineraryResult {
+  destination: string;
+  days: number;
+  budget: string;
+  interests: string[];
+  estimatedCost: EstimatedCost;
+  itinerary: ItineraryDay[];
+  isMock?: boolean;
+  tips?: string[];
 }
 
 export const AIAssistant: React.FC = () => {
@@ -22,7 +200,7 @@ export const AIAssistant: React.FC = () => {
   const [budget, setBudget] = useState('medium');
   const [selectedInterests, setSelectedInterests] = useState<string[]>([]);
   const [generating, setGenerating] = useState(false);
-  const [itineraryResult, setItineraryResult] = useState<any>(null);
+  const [itineraryResult, setItineraryResult] = useState<ItineraryResult | null>(null);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
 
   // TRAVEL ASSISTANT CHAT STATE
@@ -31,6 +209,16 @@ export const AIAssistant: React.FC = () => {
     { sender: 'assistant', text: "Hello! I am your TravelVerse AI Assistant. Ask me anything about your upcoming journeys—local customs, safety tips, best travel seasons, or transit choices!" }
   ]);
   const [sendingChat, setSendingChat] = useState(false);
+  const [savedPlaces, setSavedPlaces] = useState<Record<string, boolean>>({});
+
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Scroll to bottom of chat when history changes
+  useEffect(() => {
+    if (activeTool === 'chat') {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [chatHistory, sendingChat, activeTool]);
 
   const interestOptions = ['Nature', 'Beaches', 'Adventure', 'Food', 'Shopping', 'Historical', 'Art', 'Nightlife'];
 
@@ -92,7 +280,7 @@ export const AIAssistant: React.FC = () => {
         const savedTrip = tripRes.trip;
         
         for (const item of (itineraryResult.itinerary || [])) {
-          const notesText = item.activities?.map((a: any) => `* **${a.time || ''} - ${a.title}**: ${a.description}`).join('\n\n') || '';
+          const notesText = item.activities?.map((a: Activity) => `* **${a.time || ''} - ${a.title}**: ${a.description}`).join('\n\n') || '';
           
           await apiRequest('/trips/itinerary', {
             method: 'POST',
@@ -141,19 +329,19 @@ export const AIAssistant: React.FC = () => {
   };
 
   // Conversational Travel Q&A
-  const handleSendChat = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!chatInput.trim() || sendingChat) return;
+  const submitChatQuestion = async (userMsg: string) => {
+    if (!userMsg.trim() || sendingChat) return;
 
-    const userMsg = chatInput.trim();
     setChatHistory(prev => [...prev, { sender: 'user', text: userMsg }]);
-    setChatInput('');
     setSendingChat(true);
 
     try {
       const data = await apiRequest('/ai/assistant', {
         method: 'POST',
-        body: { question: userMsg }
+        body: { 
+          question: userMsg,
+          history: [...chatHistory, { sender: 'user', text: userMsg }]
+        }
       });
       if (data.answer) {
         setChatHistory(prev => [...prev, { sender: 'assistant', text: data.answer }]);
@@ -165,6 +353,33 @@ export const AIAssistant: React.FC = () => {
       setSendingChat(false);
     }
   };
+
+  const handleSendChat = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!chatInput.trim()) return;
+    submitChatQuestion(chatInput.trim());
+    setChatInput('');
+  };
+
+  const handleAddToWishlist = async (place: { name: string; type: string; country: string }) => {
+    try {
+      setSavedPlaces(prev => ({ ...prev, [place.name]: true }));
+      await apiRequest('/social/wishlist', {
+        method: 'POST',
+        body: { type: place.type, name: place.name, country: place.country }
+      });
+    } catch (err) {
+      console.error('Failed to add to wishlist:', err);
+      setSavedPlaces(prev => ({ ...prev, [place.name]: false }));
+    }
+  };
+
+  const suggestedPrompts = [
+    { label: '🌸 Tokyo Season Guide', text: 'What is the best season to visit Tokyo?' },
+    { label: '🚇 Rome Airport Transit', text: 'How do I get to Termini from Fiumicino Airport in Rome?' },
+    { label: '🍝 Roman Dishes Checklist', text: 'What are the main local food specialties I must eat in Rome?' },
+    { label: '🔒 Solo Safety Tips', text: 'Give me important safety guidelines for solo travelers.' }
+  ];
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 font-sans">
@@ -345,12 +560,12 @@ export const AIAssistant: React.FC = () => {
 
                   {/* Day-by-day Itinerary tree */}
                   <div className="space-y-6">
-                    {(itineraryResult.itinerary || []).map((day: any) => (
+                    {(itineraryResult.itinerary || []).map((day) => (
                       <div key={day.day} className="border-l-2 border-emerald-500 pl-4 py-1 space-y-3 font-sans">
                         <h4 className="font-bold text-slate-800 dark:text-slate-100 text-sm">{day.title}</h4>
                         
                         <div className="space-y-3">
-                          {(day.activities || []).map((act: any, idx: number) => (
+                          {(day.activities || []).map((act, idx: number) => (
                             <div key={idx} className="bg-slate-50 dark:bg-slate-850/40 p-3.5 rounded-xl border border-slate-100/30 text-xs">
                               <div className="flex items-center gap-1.5 mb-1.5 font-bold text-slate-700 dark:text-slate-300">
                                 <Clock className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
@@ -367,7 +582,7 @@ export const AIAssistant: React.FC = () => {
                   </div>
 
                   {/* Tips box */}
-                  {(itineraryResult.tips?.length > 0) && (
+                  {itineraryResult.tips && itineraryResult.tips.length > 0 && (
                     <div className="bg-emerald-50/50 border border-emerald-150 p-4 rounded-2xl dark:bg-emerald-950/20 dark:border-emerald-900/30 text-xs text-slate-650 dark:text-slate-400">
                       <h4 className="font-bold text-emerald-800 dark:text-emerald-400 mb-2 flex items-center gap-1.5">
                         <Info className="h-4.5 w-4.5" />
@@ -401,6 +616,8 @@ export const AIAssistant: React.FC = () => {
             <div className="flex-1 p-6 overflow-y-auto space-y-4 font-sans text-xs sm:text-sm">
               {chatHistory.map((msg, idx) => {
                 const isAssistant = msg.sender === 'assistant';
+                const detectedPlaces = isAssistant ? detectPlaces(msg.text) : [];
+
                 return (
                   <div 
                     key={idx} 
@@ -411,13 +628,52 @@ export const AIAssistant: React.FC = () => {
                       {isAssistant ? <Sparkles className="h-4.5 w-4.5" /> : <HelpCircle className="h-4.5 w-4.5" />}
                     </div>
 
-                    {/* Chat Text */}
-                    <div className={`p-3.5 rounded-2xl leading-relaxed whitespace-pre-wrap ${
-                      isAssistant 
-                        ? 'bg-slate-50 border border-slate-100 dark:bg-slate-850/50 dark:border-slate-800/40 text-slate-700 dark:text-slate-300' 
-                        : 'bg-emerald-500 text-white font-semibold'
-                    }`}>
-                      {msg.text}
+                    <div className="flex flex-col gap-1.5 w-full">
+                      {/* Chat Text */}
+                      <div className={`p-3.5 rounded-2xl leading-relaxed ${
+                        isAssistant 
+                          ? 'bg-slate-50 border border-slate-100 dark:bg-slate-850/50 dark:border-slate-800/40 text-slate-700 dark:text-slate-300' 
+                          : 'bg-emerald-500 text-white font-semibold'
+                      }`}>
+                        {isAssistant ? (
+                          <MarkdownRenderer text={msg.text} />
+                        ) : (
+                          <span className="whitespace-pre-wrap">{msg.text}</span>
+                        )}
+                      </div>
+
+                      {/* Detected Places Actions */}
+                      {isAssistant && detectedPlaces.length > 0 && (
+                        <div className="flex flex-wrap gap-1.5 pl-2 mt-1">
+                          {detectedPlaces.map((place) => {
+                            const isSaved = savedPlaces[place.name];
+                            return (
+                              <button
+                                key={place.name}
+                                onClick={() => handleAddToWishlist(place)}
+                                disabled={isSaved}
+                                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-bold border transition-all ${
+                                  isSaved
+                                    ? 'bg-emerald-50 border-emerald-200 text-emerald-600 dark:bg-emerald-950/20 dark:border-emerald-900/30 dark:text-emerald-400'
+                                    : 'bg-white border-slate-200 hover:bg-slate-50 text-slate-650 hover:text-slate-850 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-350 dark:hover:bg-slate-800'
+                                }`}
+                              >
+                                {isSaved ? (
+                                  <>
+                                    <Check className="h-3.5 w-3.5 text-emerald-500" />
+                                    <span>Added {place.name}!</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Bookmark className="h-3.5 w-3.5 text-slate-450 group-hover:text-emerald-500" />
+                                    <span>Add {place.name} to Wishlist</span>
+                                  </>
+                                )}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
                     </div>
                   </div>
                 );
@@ -430,6 +686,21 @@ export const AIAssistant: React.FC = () => {
                   <span>Gemini is drafting an answer...</span>
                 </div>
               )}
+              <div ref={messagesEndRef} />
+            </div>
+
+            {/* Suggested Prompts Pills */}
+            <div className="px-4 py-2 border-t border-slate-100 dark:border-slate-800/80 bg-slate-50/50 dark:bg-slate-950/10 flex gap-2 overflow-x-auto scrollbar-hide shrink-0 select-none">
+              {suggestedPrompts.map((prompt, idx) => (
+                <button
+                  key={idx}
+                  onClick={() => submitChatQuestion(prompt.text)}
+                  disabled={sendingChat}
+                  className="px-3 py-1.5 rounded-full bg-white border border-slate-200 hover:border-emerald-400 hover:bg-emerald-50/20 dark:bg-slate-900 dark:border-slate-850 dark:hover:border-emerald-500 dark:text-slate-350 text-[10px] font-semibold transition-all whitespace-nowrap cursor-pointer shrink-0 disabled:opacity-50"
+                >
+                  {prompt.label}
+                </button>
+              ))}
             </div>
 
             {/* Input Form */}

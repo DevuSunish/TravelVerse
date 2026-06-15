@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { ComposableMap, Geographies, Geography, ZoomableGroup } from 'react-simple-maps';
-import { Sparkles, Check, Bookmark, Calendar, X } from 'lucide-react';
 
 const geoUrl = '/countries-110m.json';
 
@@ -120,7 +119,6 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({ countries, onCou
               geographies.map((geo) => {
                 const countryName = geo.properties.name;
                 const code = mapNameToCode(countryName);
-                const isHovered = hoveredCountry === code;
                 const currentStatus = statusLookup[code];
                 
                 return (
