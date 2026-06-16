@@ -1,15 +1,17 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { Save, User as UserIcon, Globe, CheckCircle2 } from 'lucide-react';
+import { Save, User as UserIcon, Globe, CheckCircle2, Upload, Trash2 } from 'lucide-react';
 
 export const Settings: React.FC = () => {
   const { user, updateUser } = useAuth();
   
   const [bio, setBio] = useState(user?.bio || '');
   const [homeCountry, setHomeCountry] = useState(user?.home_country || '');
-  const [profilePic, setProfilePic] = useState(user?.profile_picture || '');
+  const [uploadedPic, setUploadedPic] = useState(user?.uploaded_picture || ''); // raw uploaded pic url
+  const [avatarUrl, setAvatarUrl] = useState(user?.avatar_url || ''); // selected avatar url
   
   const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
 
   const handleUpdate = async (e: React.FormEvent) => {
@@ -20,7 +22,8 @@ export const Settings: React.FC = () => {
       await updateUser({
         bio,
         home_country: homeCountry,
-        profile_picture: profilePic
+        profile_picture: uploadedPic || '', // store uploaded URL or empty string
+        avatar_url: avatarUrl
       });
       setStatusMessage('Profile updated successfully!');
       setTimeout(() => setStatusMessage(null), 3000);
@@ -35,7 +38,44 @@ export const Settings: React.FC = () => {
   const handleDicebearGenerate = () => {
     const randomSeed = Math.random().toString(36).substring(7);
     const newPic = `https://api.dicebear.com/7.x/adventurer/svg?seed=${randomSeed}`;
-    setProfilePic(newPic);
+    setAvatarUrl(newPic);
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const formData = new FormData();
+    formData.append('profilePicture', file);
+
+    setUploading(true);
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch('http://localhost:5000/api/auth/profile/upload', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        },
+        body: formData
+      });
+
+      let data: any = null;
+      const contentType = response.headers.get('content-type');
+      if (contentType && contentType.includes('application/json')) {
+        data = await response.json();
+      }
+
+      if (response.ok && data?.url) {
+        setUploadedPic(data.url);
+      } else {
+        alert(data?.message || 'Failed to upload profile picture.');
+      }
+    } catch (err) {
+      console.error('Upload error:', err);
+      alert('Failed to upload profile picture.');
+    } finally {
+      setUploading(false);
+    }
   };
 
   return (
@@ -60,7 +100,7 @@ export const Settings: React.FC = () => {
           {/* Avatar layout */}
           <div className="flex flex-col sm:flex-row items-center gap-6 pb-6 border-b border-slate-150/40 dark:border-slate-800/40">
             <img
-              src={profilePic || 'https://api.dicebear.com/7.x/adventurer/svg?seed=avatar'}
+              src={uploadedPic || avatarUrl || `https://api.dicebear.com/7.x/adventurer/svg?seed=${user?.username || 'avatar'}`}
               alt={user?.username}
               className="h-24 w-24 rounded-full object-cover bg-emerald-50 border-2 border-emerald-100 shadow-sm shrink-0"
             />
@@ -71,17 +111,35 @@ export const Settings: React.FC = () => {
                 <button
                   type="button"
                   onClick={handleDicebearGenerate}
-                  className="px-4 py-2 border border-slate-250 hover:bg-slate-50 dark:border-slate-850 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl text-[10px] font-bold transition-all"
+                  className="px-4 py-2 border border-slate-250 hover:bg-slate-50 dark:border-slate-850 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl text-[10px] font-bold transition-all cursor-pointer"
                 >
                   Generate Random Avatar
                 </button>
-                <input
-                  type="url"
-                  placeholder="Or paste custom image URL..."
-                  value={profilePic}
-                  onChange={(e) => setProfilePic(e.target.value)}
-                  className="w-full sm:w-[250px] bg-slate-50 border border-slate-200 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 rounded-xl px-3 py-1.5 text-xs dark:bg-slate-950 dark:border-slate-850 dark:text-white"
-                />
+                
+                {/* Upload Button */}
+                <label className="px-4 py-2 bg-slate-100 dark:bg-slate-800 border border-slate-250 dark:border-slate-850 hover:bg-slate-50 dark:hover:bg-slate-850 text-slate-700 dark:text-slate-300 rounded-xl text-[10px] font-bold transition-all cursor-pointer flex items-center gap-1">
+                  <Upload className="h-3.5 w-3.5" />
+                  {uploading ? 'Uploading...' : 'Upload Picture'}
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleFileChange}
+                    className="hidden"
+                    disabled={uploading}
+                  />
+                </label>
+
+                {/* Remove Uploaded Picture Button */}
+                {uploadedPic && (
+                  <button
+                    type="button"
+                    onClick={() => setUploadedPic('')}
+                    className="px-4 py-2 border border-rose-250 hover:bg-rose-50 text-rose-600 rounded-xl text-[10px] font-bold transition-all cursor-pointer flex items-center gap-1"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                    Remove Uploaded Picture
+                  </button>
+                )}
               </div>
             </div>
           </div>

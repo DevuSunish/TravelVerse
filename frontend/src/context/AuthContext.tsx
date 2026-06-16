@@ -9,6 +9,9 @@ export interface User {
   bio?: string;
   home_country?: string;
   profile_picture?: string;
+  avatar_url?: string;
+  uploaded_picture?: string;
+  cover_picture?: string;
 }
 
 interface AuthContextType {
@@ -51,7 +54,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               email: JSON.parse(storedUser).email, // Email is not in public profile
               bio: data.profile.bio,
               home_country: data.profile.home_country,
-              profile_picture: data.profile.profile_picture
+              profile_picture: data.profile.profile_picture,
+              avatar_url: data.profile.avatar_url,
+              uploaded_picture: data.profile.uploaded_picture,
+              cover_picture: data.profile.cover_picture
             };
             setUser(freshUser);
             localStorage.setItem('user', JSON.stringify(freshUser));
@@ -67,7 +73,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const login = (newToken: string, newUser: User) => {
     setToken(newToken);
-    setUser(newUser);
+    setUser(newToken ? newUser : null);
     localStorage.setItem('token', newToken);
     localStorage.setItem('user', JSON.stringify(newUser));
   };
@@ -105,7 +111,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           ...user!,
           bio: data.profile.bio,
           home_country: data.profile.home_country,
-          profile_picture: data.profile.profile_picture
+          profile_picture: data.profile.profile_picture,
+          avatar_url: data.profile.avatar_url,
+          uploaded_picture: data.profile.uploaded_picture,
+          cover_picture: data.profile.cover_picture
         };
         setUser(mergedUser);
         localStorage.setItem('user', JSON.stringify(mergedUser));

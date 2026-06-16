@@ -109,7 +109,7 @@ export async function inviteMember(req: AuthRequest, res: Response) {
     );
 
     // Create a notification for the invited user
-    const inviter = await query('SELECT username, profile_picture FROM users WHERE id = $1', [userId]);
+    const inviter = await query('SELECT username, COALESCE(profile_picture, avatar_url, \'https://api.dicebear.com/7.x/adventurer/svg?seed=\' || username) AS profile_picture FROM users WHERE id = $1', [userId]);
     const inviterUsername = inviter[0]?.username || req.user?.username;
     const inviterPic = inviter[0]?.profile_picture || '';
     const group = await query('SELECT name FROM travel_groups WHERE id = $1', [groupId]);
@@ -178,7 +178,7 @@ export async function respondToInvitation(req: AuthRequest, res: Response) {
       }
     }
 
-    const responder = await query('SELECT username, profile_picture FROM users WHERE id = $1', [userId]);
+    const responder = await query('SELECT username, COALESCE(profile_picture, avatar_url, \'https://api.dicebear.com/7.x/adventurer/svg?seed=\' || username) AS profile_picture FROM users WHERE id = $1', [userId]);
     const responderUsername = responder[0]?.username || req.user?.username;
     const responderPic = responder[0]?.profile_picture || '';
 
@@ -256,7 +256,7 @@ export async function getGroupDetails(req: AuthRequest, res: Response) {
 
     // Get members
     const members = await query(
-      `SELECT u.id, u.username, u.profile_picture, u.home_country, m.role, m.status 
+      `SELECT u.id, u.username, COALESCE(u.profile_picture, u.avatar_url, 'https://api.dicebear.com/7.x/adventurer/svg?seed=' || u.username) AS profile_picture, u.home_country, m.role, m.status 
        FROM users u
        JOIN group_members m ON u.id = m.user_id
        WHERE m.group_id = $1`,

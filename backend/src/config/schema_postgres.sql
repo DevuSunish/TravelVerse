@@ -26,6 +26,8 @@ CREATE TABLE users (
     bio TEXT,
     home_country VARCHAR(100),
     profile_picture VARCHAR(255),
+    avatar_url VARCHAR(255),
+    cover_picture VARCHAR(255),
     travel_percentage DECIMAL(5,2) DEFAULT 0.00,
     countries_visited_count INT DEFAULT 0,
     trips_completed_count INT DEFAULT 0,

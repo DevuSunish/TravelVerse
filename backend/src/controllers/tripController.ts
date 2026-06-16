@@ -19,14 +19,29 @@ export function getCountryCode(countryName: string): string {
 
 export async function getTrips(req: AuthRequest, res: Response) {
   try {
-    const userId = req.user?.id;
+    const loggedInUserId = req.user?.id;
     const statusParam = req.query.status; // 'past', 'planned', 'wishlist'
+    const usernameParam = req.query.username;
+    const userIdParam = req.query.userId;
+    
+    let targetUserId = loggedInUserId;
+    if (usernameParam) {
+      const userRes = await query('SELECT id FROM users WHERE username = $1', [usernameParam]);
+      if (userRes.length > 0) {
+        targetUserId = userRes[0].id;
+      } else {
+        return res.json({ trips: [] });
+      }
+    } else if (userIdParam) {
+      targetUserId = parseInt(userIdParam as string);
+    }
     
     let tripsQuery = 'SELECT * FROM trips WHERE user_id = $1';
-    const params: any[] = [userId];
+    const params: any[] = [targetUserId];
+    let paramIndex = 2;
 
     if (statusParam) {
-      tripsQuery += ' AND status = $2';
+      tripsQuery += ` AND status = $${paramIndex++}`;
       params.push(statusParam);
     }
     

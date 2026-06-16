@@ -367,13 +367,17 @@ export const Dashboard: React.FC = () => {
                       
                       {/* Header */}
                       <div className="flex items-center gap-2.5 mb-3">
-                        <img 
-                          src={item.profile_picture || 'https://api.dicebear.com/7.x/adventurer/svg?seed=avatar'} 
-                          alt={item.username} 
-                          className="h-8 w-8 rounded-full border border-slate-200"
-                        />
+                        <Link to={`/profile?username=${item.username}`} className="shrink-0">
+                          <img 
+                            src={item.profile_picture || 'https://api.dicebear.com/7.x/adventurer/svg?seed=avatar'} 
+                            alt={item.username} 
+                            className="h-8 w-8 rounded-full border border-slate-200 cursor-pointer"
+                          />
+                        </Link>
                         <div>
-                          <span className="font-bold text-slate-800 dark:text-slate-200 text-xs block leading-tight">{item.username}</span>
+                          <Link to={`/profile?username=${item.username}`} className="hover:underline">
+                            <span className="font-bold text-slate-800 dark:text-slate-200 text-xs block leading-tight cursor-pointer">{item.username}</span>
+                          </Link>
                           <span className="text-[10px] text-slate-400">Logged a travel story</span>
                         </div>
                         <span className="ml-auto px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-700 dark:bg-blue-950/20 dark:text-blue-400">

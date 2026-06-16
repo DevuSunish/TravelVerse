@@ -2,7 +2,8 @@ import { Router } from 'express';
 import { authMiddleware } from '../middleware/auth';
 
 // Controller imports
-import { register, login, getProfile, updateProfile } from '../controllers/authController';
+import { register, login, getProfile, updateProfile, uploadProfilePicture } from '../controllers/authController';
+import { upload } from '../middleware/upload';
 import { 
   getTrips, getTripById, createTrip, updateTrip, deleteTrip, 
   addTripPhotos, getItineraries, createOrUpdateItinerary, createActivity 
@@ -16,7 +17,9 @@ import {
   createRecommendation, getRecommendations, toggleLike, addComment, getComments, 
   followUser, unfollowUser, getActivityFeed, searchEverything, getWishlist, 
   addToWishlist, removeFromWishlist, getNotifications, markNotificationRead,
-  markAllNotificationsRead, deleteNotification, deleteAllNotifications
+  markAllNotificationsRead, deleteNotification, deleteAllNotifications,
+  checkFollowStatus, getFollowersCount, getFollowingCount,
+  getFollowersList, getFollowingList
 } from '../controllers/socialController';
 import { generateItinerary, askAssistant } from '../controllers/aiController';
 
@@ -27,6 +30,7 @@ router.post('/auth/register', register);
 router.post('/auth/login', login);
 router.get('/auth/profile', authMiddleware, getProfile);
 router.put('/auth/profile', authMiddleware, updateProfile);
+router.post('/auth/profile/upload', authMiddleware, upload.single('profilePicture'), uploadProfilePicture);
 
 // --- TRIPS ROUTES ---
 router.get('/trips', authMiddleware, getTrips);
@@ -62,6 +66,11 @@ router.post('/social/comment', authMiddleware, addComment);
 router.get('/social/comment', authMiddleware, getComments);
 router.post('/social/follow', authMiddleware, followUser);
 router.post('/social/unfollow', authMiddleware, unfollowUser);
+router.get('/social/follow/status/:userId', authMiddleware, checkFollowStatus);
+router.get('/social/followers/count/:userId', authMiddleware, getFollowersCount);
+router.get('/social/following/count/:userId', authMiddleware, getFollowingCount);
+router.get('/social/followers/list/:userId', authMiddleware, getFollowersList);
+router.get('/social/following/list/:userId', authMiddleware, getFollowingList);
 router.get('/social/feed', authMiddleware, getActivityFeed);
 router.get('/social/search', authMiddleware, searchEverything);
 router.get('/social/wishlist', authMiddleware, getWishlist);

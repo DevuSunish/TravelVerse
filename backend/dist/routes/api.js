@@ -52,7 +52,10 @@ router.get('/social/wishlist', auth_1.authMiddleware, socialController_1.getWish
 router.post('/social/wishlist', auth_1.authMiddleware, socialController_1.addToWishlist);
 router.delete('/social/wishlist/:id', auth_1.authMiddleware, socialController_1.removeFromWishlist);
 router.get('/social/notifications', auth_1.authMiddleware, socialController_1.getNotifications);
+router.put('/social/notifications/read-all', auth_1.authMiddleware, socialController_1.markAllNotificationsRead);
 router.put('/social/notifications/:id', auth_1.authMiddleware, socialController_1.markNotificationRead);
+router.delete('/social/notifications/:id', auth_1.authMiddleware, socialController_1.deleteNotification);
+router.delete('/social/notifications', auth_1.authMiddleware, socialController_1.deleteAllNotifications);
 // --- AI FEATURES ROUTES ---
 router.post('/ai/itinerary', auth_1.authMiddleware, aiController_1.generateItinerary);
 router.post('/ai/assistant', auth_1.authMiddleware, aiController_1.askAssistant);

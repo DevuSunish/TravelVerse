@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { apiRequest } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { 
@@ -478,13 +479,14 @@ export const GroupPlanner: React.FC = () => {
                         <span className="text-[10px] uppercase font-bold text-slate-400 mr-2">Members:</span>
                         <div className="flex -space-x-2.5 overflow-hidden">
                           {groupDetails.members.map((m) => (
-                            <img
-                              key={m.id}
-                              src={m.profile_picture || 'https://api.dicebear.com/7.x/adventurer/svg?seed=avatar'}
-                              alt={m.username}
-                              title={`${m.username} (${m.role}) - ${m.status}`}
-                              className={`inline-block h-7.5 w-7.5 rounded-full object-cover ring-2 ring-white bg-slate-150 ${m.status === 'pending' ? 'opacity-40 grayscale' : ''}`}
-                            />
+                            <Link key={m.id} to={`/profile?username=${m.username}`} className="shrink-0">
+                              <img
+                                src={m.profile_picture || 'https://api.dicebear.com/7.x/adventurer/svg?seed=avatar'}
+                                alt={m.username}
+                                title={`${m.username} (${m.role}) - ${m.status}`}
+                                className={`inline-block h-7.5 w-7.5 rounded-full object-cover ring-2 ring-white bg-slate-150 cursor-pointer ${m.status === 'pending' ? 'opacity-40 grayscale' : ''}`}
+                              />
+                            </Link>
                           ))}
                         </div>
                       </div>

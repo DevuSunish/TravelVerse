@@ -37,6 +37,7 @@ export async function initDB() {
         console.log('PostgreSQL tables not found. Running migrations and seeding...');
         await runPostgresSchema();
       }
+      await runMigrations();
       return;
     } catch (err: any) {
       console.error('PostgreSQL connection failed. Error:', err.message || err);
@@ -78,6 +79,34 @@ export async function initDB() {
   if (!tableCheck) {
     console.log('SQLite tables not found. Running migrations and seeding...');
     await runSQLiteSchema();
+  }
+  await runMigrations();
+}
+
+// Execute migration to add avatar_url and cover_picture columns
+async function runMigrations() {
+  try {
+    if (isSQLite) {
+      await query('ALTER TABLE users ADD COLUMN avatar_url TEXT');
+    } else {
+      await query('ALTER TABLE users ADD COLUMN avatar_url VARCHAR(255)');
+    }
+    console.log('Successfully added avatar_url column to users table');
+  } catch (err: any) {
+    // Suppress error if the column already exists
+    console.log('Database column check (avatar_url):', err.message);
+  }
+
+  try {
+    if (isSQLite) {
+      await query('ALTER TABLE users ADD COLUMN cover_picture TEXT');
+    } else {
+      await query('ALTER TABLE users ADD COLUMN cover_picture VARCHAR(255)');
+    }
+    console.log('Successfully added cover_picture column to users table');
+  } catch (err: any) {
+    // Suppress error if the column already exists
+    console.log('Database column check (cover_picture):', err.message);
   }
 }
 

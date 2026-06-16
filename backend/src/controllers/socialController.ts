@@ -44,10 +44,10 @@ export async function createRecommendation(req: AuthRequest, res: Response) {
 export async function getRecommendations(req: AuthRequest, res: Response) {
   try {
     const userId = req.user?.id;
-    const { category, country, search } = req.query;
+    const { category, country, search, username } = req.query;
 
     let recsQuery = `
-      SELECT r.*, u.username, u.profile_picture,
+      SELECT r.*, u.username, COALESCE(u.profile_picture, u.avatar_url, 'https://api.dicebear.com/7.x/adventurer/svg?seed=' || u.username) AS profile_picture,
              (SELECT COUNT(*) FROM likes WHERE recommendation_id = r.id) as likes_count,
              (SELECT COUNT(*) FROM comments WHERE recommendation_id = r.id) as comments_count,
              EXISTS(SELECT 1 FROM likes WHERE user_id = $1 AND recommendation_id = r.id) as is_liked
@@ -72,6 +72,11 @@ export async function getRecommendations(req: AuthRequest, res: Response) {
       recsQuery += ` AND (LOWER(r.place_name) LIKE LOWER($${paramIndex}) OR LOWER(r.country) LIKE LOWER($${paramIndex}) OR LOWER(r.review) LIKE LOWER($${paramIndex}))`;
       params.push(`%${search}%`);
       paramIndex++;
+    }
+
+    if (username) {
+      recsQuery += ` AND u.username = $${paramIndex++}`;
+      params.push(username);
     }
 
     recsQuery += ' ORDER BY r.created_at DESC';
@@ -105,7 +110,7 @@ export async function toggleLike(req: AuthRequest, res: Response) {
         // Notify owner
         const trip = await query('SELECT user_id, title FROM trips WHERE id = $1', [trip_id]);
         if (trip.length > 0 && trip[0].user_id !== userId) {
-          const sender = await query('SELECT username, profile_picture FROM users WHERE id = $1', [userId]);
+          const sender = await query('SELECT username, COALESCE(profile_picture, avatar_url, \'https://api.dicebear.com/7.x/adventurer/svg?seed=\' || username) AS profile_picture FROM users WHERE id = $1', [userId]);
           const senderUsername = sender[0]?.username || req.user?.username;
           const senderPic = sender[0]?.profile_picture || '';
           
@@ -132,7 +137,7 @@ export async function toggleLike(req: AuthRequest, res: Response) {
         // Notify owner
         const rec = await query('SELECT user_id, title FROM recommendations WHERE id = $1', [recommendation_id]);
         if (rec.length > 0 && rec[0].user_id !== userId) {
-          const sender = await query('SELECT username, profile_picture FROM users WHERE id = $1', [userId]);
+          const sender = await query('SELECT username, COALESCE(profile_picture, avatar_url, \'https://api.dicebear.com/7.x/adventurer/svg?seed=\' || username) AS profile_picture FROM users WHERE id = $1', [userId]);
           const senderUsername = sender[0]?.username || req.user?.username;
           const senderPic = sender[0]?.profile_picture || '';
 
@@ -172,7 +177,7 @@ export async function addComment(req: AuthRequest, res: Response) {
 
     // Join user info for returning
     const commentWithUser = await query(
-      `SELECT c.*, u.username, u.profile_picture 
+      `SELECT c.*, u.username, COALESCE(u.profile_picture, u.avatar_url, 'https://api.dicebear.com/7.x/adventurer/svg?seed=' || u.username) AS profile_picture 
        FROM comments c 
        JOIN users u ON c.user_id = u.id 
        WHERE c.id = $1`,
@@ -180,7 +185,7 @@ export async function addComment(req: AuthRequest, res: Response) {
     );
 
     // Notify owner
-    const sender = await query('SELECT username, profile_picture FROM users WHERE id = $1', [userId]);
+    const sender = await query('SELECT username, COALESCE(profile_picture, avatar_url, \'https://api.dicebear.com/7.x/adventurer/svg?seed=\' || username) AS profile_picture FROM users WHERE id = $1', [userId]);
     const senderUsername = sender[0]?.username || req.user?.username;
     const senderPic = sender[0]?.profile_picture || '';
 
@@ -224,7 +229,7 @@ export async function getComments(req: AuthRequest, res: Response) {
     const { trip_id, recommendation_id } = req.query;
 
     let commentsQuery = `
-      SELECT c.*, u.username, u.profile_picture 
+      SELECT c.*, u.username, COALESCE(u.profile_picture, u.avatar_url, 'https://api.dicebear.com/7.x/adventurer/svg?seed=' || u.username) AS profile_picture 
       FROM comments c
       JOIN users u ON c.user_id = u.id
       WHERE 1=1
@@ -269,7 +274,7 @@ export async function followUser(req: AuthRequest, res: Response) {
     await query('INSERT INTO follows (follower_id, following_id) VALUES ($1, $2)', [followerId, userIdToFollow]);
     
     // Add notification
-    const sender = await query('SELECT username, profile_picture FROM users WHERE id = $1', [followerId]);
+    const sender = await query('SELECT username, COALESCE(profile_picture, avatar_url, \'https://api.dicebear.com/7.x/adventurer/svg?seed=\' || username) AS profile_picture FROM users WHERE id = $1', [followerId]);
     const senderUsername = sender[0]?.username || req.user?.username;
     const senderPic = sender[0]?.profile_picture || '';
     
@@ -293,6 +298,17 @@ export async function unfollowUser(req: AuthRequest, res: Response) {
     const { userIdToUnfollow } = req.body;
 
     await query('DELETE FROM follows WHERE follower_id = $1 AND following_id = $2', [followerId, userIdToUnfollow]);
+    
+    // Clean up follow notification created by this follow relationship
+    const targetUserId = parseInt(userIdToUnfollow);
+    if (followerId && !isNaN(targetUserId)) {
+      const likePattern = `%"sender_id":${followerId}%`;
+      await query(
+        "DELETE FROM notifications WHERE user_id = $1 AND type = 'follow' AND content LIKE $2",
+        [targetUserId, likePattern]
+      );
+    }
+
     res.json({ followed: false });
   } catch (err: any) {
     console.error('Unfollow error:', err.message);
@@ -317,7 +333,7 @@ export async function getActivityFeed(req: AuthRequest, res: Response) {
       const placeholders = followingIds.map((_, i) => `$${i + 1}`).join(',');
       
       feedTrips = await query(
-        `SELECT t.*, u.username, u.profile_picture, 'trip' as feed_type,
+        `SELECT t.*, u.username, COALESCE(u.profile_picture, u.avatar_url, 'https://api.dicebear.com/7.x/adventurer/svg?seed=' || u.username) AS profile_picture, 'trip' as feed_type,
                 (SELECT COUNT(*) FROM likes WHERE trip_id = t.id) as likes_count,
                 (SELECT COUNT(*) FROM comments WHERE trip_id = t.id) as comments_count,
                 EXISTS(SELECT 1 FROM likes WHERE user_id = $${followingIds.length + 1} AND trip_id = t.id) as is_liked
@@ -329,7 +345,7 @@ export async function getActivityFeed(req: AuthRequest, res: Response) {
       );
 
       feedRecs = await query(
-        `SELECT r.*, u.username, u.profile_picture, 'recommendation' as feed_type,
+        `SELECT r.*, u.username, COALESCE(u.profile_picture, u.avatar_url, 'https://api.dicebear.com/7.x/adventurer/svg?seed=' || u.username) AS profile_picture, 'recommendation' as feed_type,
                 (SELECT COUNT(*) FROM likes WHERE recommendation_id = r.id) as likes_count,
                 (SELECT COUNT(*) FROM comments WHERE recommendation_id = r.id) as comments_count,
                 EXISTS(SELECT 1 FROM likes WHERE user_id = $${followingIds.length + 1} AND recommendation_id = r.id) as is_liked
@@ -342,7 +358,7 @@ export async function getActivityFeed(req: AuthRequest, res: Response) {
     } else {
       // Fallback: Show general public feed (all users, sorted by date)
       feedTrips = await query(
-        `SELECT t.*, u.username, u.profile_picture, 'trip' as feed_type,
+        `SELECT t.*, u.username, COALESCE(u.profile_picture, u.avatar_url, 'https://api.dicebear.com/7.x/adventurer/svg?seed=' || u.username) AS profile_picture, 'trip' as feed_type,
                 (SELECT COUNT(*) FROM likes WHERE trip_id = t.id) as likes_count,
                 (SELECT COUNT(*) FROM comments WHERE trip_id = t.id) as comments_count,
                 EXISTS(SELECT 1 FROM likes WHERE user_id = $1 AND trip_id = t.id) as is_liked
@@ -354,7 +370,7 @@ export async function getActivityFeed(req: AuthRequest, res: Response) {
       );
 
       feedRecs = await query(
-        `SELECT r.*, u.username, u.profile_picture, 'recommendation' as feed_type,
+        `SELECT r.*, u.username, COALESCE(u.profile_picture, u.avatar_url, 'https://api.dicebear.com/7.x/adventurer/svg?seed=' || u.username) AS profile_picture, 'recommendation' as feed_type,
                 (SELECT COUNT(*) FROM likes WHERE recommendation_id = r.id) as likes_count,
                 (SELECT COUNT(*) FROM comments WHERE recommendation_id = r.id) as comments_count,
                 EXISTS(SELECT 1 FROM likes WHERE user_id = $1 AND recommendation_id = r.id) as is_liked
@@ -389,7 +405,7 @@ export async function searchEverything(req: AuthRequest, res: Response) {
 
     // Search travelers
     const travelers = await query(
-      `SELECT id, username, profile_picture, home_country, bio 
+      `SELECT id, username, COALESCE(profile_picture, avatar_url, 'https://api.dicebear.com/7.x/adventurer/svg?seed=' || username) AS profile_picture, home_country, bio 
        FROM users 
        WHERE LOWER(username) LIKE LOWER($1) OR LOWER(home_country) LIKE LOWER($1) LIMIT 10`,
       [searchQuery]
@@ -397,7 +413,7 @@ export async function searchEverything(req: AuthRequest, res: Response) {
 
     // Search destinations/trips
     const destinations = await query(
-      `SELECT t.*, u.username, u.profile_picture
+      `SELECT t.*, u.username, COALESCE(u.profile_picture, u.avatar_url, 'https://api.dicebear.com/7.x/adventurer/svg?seed=' || u.username) AS profile_picture
        FROM trips t
        JOIN users u ON t.user_id = u.id
        WHERE t.status = 'past' AND (LOWER(t.country) LIKE LOWER($1) OR LOWER(t.city) LIKE LOWER($1))
@@ -495,7 +511,11 @@ export async function getNotifications(req: AuthRequest, res: Response) {
   try {
     const userId = req.user?.id;
     const notifications = await query('SELECT * FROM notifications WHERE user_id = $1 ORDER BY created_at DESC LIMIT 50', [userId]);
-    res.json({ notifications });
+    const formattedNotifications = notifications.map(notif => ({
+      ...notif,
+      createdAt: notif.created_at
+    }));
+    res.json({ notifications: formattedNotifications });
   } catch (err: any) {
     console.error('Get notifications error:', err.message);
     res.status(500).json({ message: 'Server error retrieving notifications' });
@@ -545,5 +565,73 @@ export async function deleteAllNotifications(req: AuthRequest, res: Response) {
   } catch (err: any) {
     console.error('Clear notifications error:', err.message);
     res.status(500).json({ message: 'Server error clearing notifications' });
+  }
+}
+
+export async function checkFollowStatus(req: AuthRequest, res: Response) {
+  try {
+    const followerId = req.user?.id;
+    const { userId } = req.params;
+    const check = await query('SELECT 1 FROM follows WHERE follower_id = $1 AND following_id = $2', [followerId, userId]);
+    res.json({ isFollowing: check.length > 0 });
+  } catch (err: any) {
+    console.error('Check follow status error:', err.message);
+    res.status(500).json({ message: 'Server error checking follow status' });
+  }
+}
+
+export async function getFollowersCount(req: AuthRequest, res: Response) {
+  try {
+    const { userId } = req.params;
+    const countRes = await query('SELECT COUNT(*) as count FROM follows WHERE following_id = $1', [userId]);
+    res.json({ count: parseInt(countRes[0]?.count || '0') });
+  } catch (err: any) {
+    console.error('Get followers count error:', err.message);
+    res.status(500).json({ message: 'Server error retrieving followers count' });
+  }
+}
+
+export async function getFollowingCount(req: AuthRequest, res: Response) {
+  try {
+    const { userId } = req.params;
+    const countRes = await query('SELECT COUNT(*) as count FROM follows WHERE follower_id = $1', [userId]);
+    res.json({ count: parseInt(countRes[0]?.count || '0') });
+  } catch (err: any) {
+    console.error('Get following count error:', err.message);
+    res.status(500).json({ message: 'Server error retrieving following count' });
+  }
+}
+
+export async function getFollowersList(req: AuthRequest, res: Response) {
+  try {
+    const { userId } = req.params;
+    const followers = await query(
+      `SELECT u.id, u.username, COALESCE(u.profile_picture, u.avatar_url, 'https://api.dicebear.com/7.x/adventurer/svg?seed=' || u.username) AS profile_picture, u.home_country, u.bio
+       FROM follows f
+       JOIN users u ON f.follower_id = u.id
+       WHERE f.following_id = $1`,
+      [userId]
+    );
+    res.json({ followers });
+  } catch (err: any) {
+    console.error('Get followers list error:', err.message);
+    res.status(500).json({ message: 'Server error retrieving followers list' });
+  }
+}
+
+export async function getFollowingList(req: AuthRequest, res: Response) {
+  try {
+    const { userId } = req.params;
+    const following = await query(
+      `SELECT u.id, u.username, COALESCE(u.profile_picture, u.avatar_url, 'https://api.dicebear.com/7.x/adventurer/svg?seed=' || u.username) AS profile_picture, u.home_country, u.bio
+       FROM follows f
+       JOIN users u ON f.following_id = u.id
+       WHERE f.follower_id = $1`,
+      [userId]
+    );
+    res.json({ following });
+  } catch (err: any) {
+    console.error('Get following list error:', err.message);
+    res.status(500).json({ message: 'Server error retrieving following list' });
   }
 }

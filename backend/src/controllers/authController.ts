@@ -59,8 +59,8 @@ export async function register(req: Request, res: Response) {
 
     // Create user
     const newUser = await query(
-      `INSERT INTO users (username, email, password_hash, home_country, profile_picture) 
-       VALUES ($1, $2, $3, $4, $5) RETURNING id, username, email`,
+      `INSERT INTO users (username, email, password_hash, home_country, avatar_url) 
+       VALUES ($1, $2, $3, $4, $5) RETURNING id, username, email, avatar_url, cover_picture`,
       [username, email, passwordHash, home_country || 'Unknown', defaultPic]
     );
 
@@ -78,6 +78,9 @@ export async function register(req: Request, res: Response) {
         username: user.username,
         email: user.email,
         profile_picture: defaultPic,
+        avatar_url: defaultPic,
+        uploaded_picture: null,
+        cover_picture: null,
         home_country: home_country || 'Unknown'
       },
     });
@@ -114,6 +117,8 @@ export async function login(req: Request, res: Response) {
       expiresIn: '7d',
     });
 
+    const resolvedProfilePic = user.profile_picture || user.avatar_url || `https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(user.username)}`;
+
     res.json({
       token,
       user: {
@@ -122,7 +127,10 @@ export async function login(req: Request, res: Response) {
         email: user.email,
         bio: user.bio,
         home_country: user.home_country,
-        profile_picture: user.profile_picture,
+        profile_picture: resolvedProfilePic,
+        avatar_url: user.avatar_url,
+        uploaded_picture: user.profile_picture,
+        cover_picture: user.cover_picture
       },
     });
   } catch (err: any) {
@@ -139,13 +147,13 @@ export async function getProfile(req: AuthRequest, res: Response) {
     
     let user;
     if (usernameParam) {
-      const users = await query('SELECT id, username, email, bio, home_country, profile_picture FROM users WHERE username = $1', [usernameParam]);
+      const users = await query('SELECT id, username, email, bio, home_country, profile_picture, avatar_url, cover_picture FROM users WHERE username = $1', [usernameParam]);
       if (users.length === 0) {
         return res.status(404).json({ message: 'User not found' });
       }
       user = users[0];
     } else {
-      const users = await query('SELECT id, username, email, bio, home_country, profile_picture FROM users WHERE id = $1', [userId]);
+      const users = await query('SELECT id, username, email, bio, home_country, profile_picture, avatar_url, cover_picture FROM users WHERE id = $1', [userId]);
       if (users.length === 0) {
         return res.status(404).json({ message: 'User not found' });
       }
@@ -178,13 +186,18 @@ export async function getProfile(req: AuthRequest, res: Response) {
       isFollowing = followCheck.length > 0;
     }
 
+    const resolvedProfilePic = user.profile_picture || user.avatar_url || `https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(user.username)}`;
+
     res.json({
       profile: {
         id: user.id,
         username: user.username,
         bio: user.bio,
         home_country: user.home_country,
-        profile_picture: user.profile_picture,
+        profile_picture: resolvedProfilePic,
+        avatar_url: user.avatar_url,
+        uploaded_picture: user.profile_picture,
+        cover_picture: user.cover_picture,
         stats: {
           countries_visited_count: countriesCount,
           trips_completed_count: tripsCount,
@@ -206,7 +219,7 @@ export async function getProfile(req: AuthRequest, res: Response) {
 export async function updateProfile(req: AuthRequest, res: Response) {
   try {
     const userId = req.user?.id;
-    const { bio, home_country, profile_picture } = req.body;
+    const { bio, home_country, profile_picture, avatar_url, cover_picture } = req.body;
 
     // Build update query dynamically
     const fields: string[] = [];
@@ -225,22 +238,61 @@ export async function updateProfile(req: AuthRequest, res: Response) {
       fields.push(`profile_picture = $${paramIndex++}`);
       values.push(profile_picture);
     }
+    if (avatar_url !== undefined) {
+      fields.push(`avatar_url = $${paramIndex++}`);
+      values.push(avatar_url);
+    }
+    if (cover_picture !== undefined) {
+      fields.push(`cover_picture = $${paramIndex++}`);
+      values.push(cover_picture);
+    }
 
     if (fields.length === 0) {
       return res.status(400).json({ message: 'No fields to update' });
     }
 
     values.push(userId);
-    const updateQuery = `UPDATE users SET ${fields.join(', ')}, updated_at = CURRENT_TIMESTAMP WHERE id = $${paramIndex} RETURNING id, username, email, bio, home_country, profile_picture`;
+    const updateQuery = `UPDATE users SET ${fields.join(', ')}, updated_at = CURRENT_TIMESTAMP WHERE id = $${paramIndex} RETURNING id, username, email, bio, home_country, profile_picture, avatar_url, cover_picture`;
 
     const updatedUser = await query(updateQuery, values);
+    const user = updatedUser[0];
+    const resolvedProfilePic = user.profile_picture || user.avatar_url || `https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(user.username)}`;
 
     res.json({
       message: 'Profile updated successfully',
-      user: updatedUser[0],
+      user: {
+        id: user.id,
+        username: user.username,
+        email: user.email,
+        bio: user.bio,
+        home_country: user.home_country,
+        profile_picture: resolvedProfilePic,
+        avatar_url: user.avatar_url,
+        uploaded_picture: user.profile_picture,
+        cover_picture: user.cover_picture
+      },
     });
   } catch (err: any) {
     console.error('Update profile error:', err.message);
     res.status(500).json({ message: 'Server error updating profile' });
+  }
+}
+
+export async function uploadProfilePicture(req: AuthRequest, res: Response) {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ message: 'No file uploaded' });
+    }
+
+    // Construct public file URL
+    const fileUrl = `${req.protocol}://${req.get('host')}/uploads/${req.file.filename}`;
+
+    res.json({
+      message: 'File uploaded successfully',
+      url: fileUrl
+    });
+  } catch (err: any) {
+    console.error('Upload profile picture controller error:', err.message);
+    res.status(500).json({ message: 'Server error uploading image' });
   }
 }
