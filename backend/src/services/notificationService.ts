@@ -26,7 +26,7 @@ export async function notifyGroupMembers(groupId: number, senderId: number, mess
     const groupName = group[0]?.name || 'a travel group';
 
     // Get sender username and profile picture
-    const sender = await query('SELECT username, profile_picture FROM users WHERE id = $1', [senderId]);
+    const sender = await query('SELECT username, COALESCE(profile_picture, avatar_url, \'https://api.dicebear.com/7.x/adventurer/svg?seed=\' || username) AS profile_picture FROM users WHERE id = $1', [senderId]);
     const senderUsername = sender[0]?.username || 'A traveler';
     const senderPic = sender[0]?.profile_picture || '';
 

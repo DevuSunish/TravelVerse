@@ -4,9 +4,13 @@ exports.addExpense = addExpense;
 exports.getExpenses = getExpenses;
 exports.deleteExpense = deleteExpense;
 const db_1 = require("../config/db");
+const notificationService_1 = require("../services/notificationService");
 async function addExpense(req, res) {
     try {
         const userId = req.user?.id;
+        if (!userId) {
+            return res.status(401).json({ message: 'Unauthorized' });
+        }
         const { trip_id, group_id, amount, description, category, split_details } = req.body;
         if (!amount || !description || !category) {
             return res.status(400).json({ message: 'Amount, description, and category are required' });
@@ -36,6 +40,11 @@ async function addExpense(req, res) {
             category,
             split_details ? JSON.stringify(split_details) : null
         ]);
+        if (group_id) {
+            const payer = await (0, db_1.query)('SELECT username FROM users WHERE id = $1', [userId]);
+            const payerUsername = payer[0]?.username || 'A group member';
+            (0, notificationService_1.notifyGroupMembers)(group_id, userId, `${payerUsername} logged a new expense "${description}" for $${amount}.`, { expense_id: newExpense[0].id, amount, description }).catch(err => console.error('Failed to notify group members for expense:', err.message));
+        }
         res.status(201).json({ expense: newExpense[0] });
     }
     catch (err) {

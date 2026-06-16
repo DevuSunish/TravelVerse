@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { Star, MapPin, Heart, MessageCircle, Navigation, Clock, DollarSign, Send } from 'lucide-react';
 import { apiRequest } from '../services/api';
 
@@ -124,13 +125,17 @@ export const RecommendationCard: React.FC<RecommendationCardProps> = ({ rec, onL
     <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800/80 rounded-2xl overflow-hidden shadow-xs hover-card flex flex-col">
       {/* Header (Author) */}
       <div className="flex items-center gap-3 p-4">
-        <img
-          src={rec.profile_picture || 'https://api.dicebear.com/7.x/adventurer/svg?seed=avatar'}
-          alt={rec.username}
-          className="h-10 w-10 rounded-full object-cover bg-emerald-50 border border-emerald-100 dark:border-emerald-800"
-        />
+        <Link to={`/profile?username=${rec.username}`} className="shrink-0">
+          <img
+            src={rec.profile_picture || 'https://api.dicebear.com/7.x/adventurer/svg?seed=avatar'}
+            alt={rec.username}
+            className="h-10 w-10 rounded-full object-cover bg-emerald-50 border border-emerald-100 dark:border-emerald-800 cursor-pointer"
+          />
+        </Link>
         <div>
-          <h4 className="font-semibold text-slate-800 dark:text-slate-200 text-sm">{rec.username}</h4>
+          <Link to={`/profile?username=${rec.username}`} className="hover:underline">
+            <h4 className="font-semibold text-slate-800 dark:text-slate-200 text-sm cursor-pointer">{rec.username}</h4>
+          </Link>
           <span className="text-[10px] text-slate-400">
             {new Date(rec.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
           </span>
@@ -243,13 +248,17 @@ export const RecommendationCard: React.FC<RecommendationCardProps> = ({ rec, onL
             ) : (
               comments.map((comm) => (
                 <div key={comm.id} className="flex items-start gap-2 text-xs">
-                  <img
-                    src={comm.profile_picture || 'https://api.dicebear.com/7.x/adventurer/svg?seed=avatar'}
-                    alt={comm.username}
-                    className="h-6 w-6 rounded-full object-cover bg-emerald-50 shrink-0"
-                  />
+                  <Link to={`/profile?username=${comm.username}`} className="shrink-0">
+                    <img
+                      src={comm.profile_picture || 'https://api.dicebear.com/7.x/adventurer/svg?seed=avatar'}
+                      alt={comm.username}
+                      className="h-6 w-6 rounded-full object-cover bg-emerald-50 shrink-0 cursor-pointer"
+                    />
+                  </Link>
                   <div className="bg-slate-100 dark:bg-slate-800 p-2 rounded-xl flex-1">
-                    <span className="font-bold text-slate-700 dark:text-slate-200 block mb-0.5">{comm.username}</span>
+                    <Link to={`/profile?username=${comm.username}`} className="hover:underline">
+                      <span className="font-bold text-slate-700 dark:text-slate-200 block mb-0.5 cursor-pointer">{comm.username}</span>
+                    </Link>
                     <p className="text-slate-600 dark:text-slate-300 leading-normal">{comm.content}</p>
                   </div>
                 </div>

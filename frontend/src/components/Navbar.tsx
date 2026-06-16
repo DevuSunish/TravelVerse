@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
-import { useNotifications } from '../context/NotificationContext';
+import { useNotifications, ParsedNotification } from '../context/NotificationContext';
 import { 
   Compass, Map, Sparkles, Award, 
   Sun, Moon, Menu, X, LogOut, User as UserIcon, Settings, Calendar,
@@ -28,17 +28,42 @@ export const Navbar: React.FC = () => {
   const [notifDropdownOpen, setNotifDropdownOpen] = useState(false);
 
   const formatTimeAgo = (dateString: string) => {
-    const date = new Date(dateString);
+    if (!dateString) return 'Just now';
+    
+    let date = new Date(dateString);
+    // SQLite returns "YYYY-MM-DD HH:MM:SS" which does not contain 'T' or 'Z'.
+    // If we parse this string in the browser, it will interpret it as local time.
+    // Since the database stores times in UTC, we must convert it to ISO format with Z suffix.
+    if (typeof dateString === 'string' && !dateString.includes('T') && !dateString.endsWith('Z')) {
+      const formatted = dateString.replace(' ', 'T') + 'Z';
+      const parsedDate = new Date(formatted);
+      if (!isNaN(parsedDate.getTime())) {
+        date = parsedDate;
+      }
+    }
+
     const now = new Date();
     const diffMs = now.getTime() - date.getTime();
+
+    // Prevent negative time differences due to minor clock offsets
+    if (diffMs < 0) {
+      return 'Just now';
+    }
+
     const diffMins = Math.floor(diffMs / 60000);
     const diffHours = Math.floor(diffMins / 60);
     const diffDays = Math.floor(diffHours / 24);
 
-    if (diffMins < 1) return 'Just now';
-    if (diffMins < 60) return `${diffMins}m ago`;
-    if (diffHours < 24) return `${diffHours}h ago`;
-    return `${diffDays}d ago`;
+    if (diffMins < 1) {
+      return 'Just now';
+    }
+    if (diffMins < 60) {
+      return diffMins === 1 ? '1 minute ago' : `${diffMins} minutes ago`;
+    }
+    if (diffHours < 24) {
+      return diffHours === 1 ? '1 hour ago' : `${diffHours} hours ago`;
+    }
+    return diffDays === 1 ? '1 day ago' : `${diffDays} days ago`;
   };
 
   const getNotificationIcon = (type: string) => {
@@ -69,6 +94,16 @@ export const Navbar: React.FC = () => {
       await markAsRead(notifId);
     } catch (err) {
       console.error('Failed to handle group invite response:', err);
+    }
+  };
+
+  const handleNotificationClick = (notif: ParsedNotification) => {
+    if (!notif.is_read) {
+      markAsRead(notif.id);
+    }
+    setNotifDropdownOpen(false);
+    if (notif.type === 'follow' && notif.sender_username) {
+      navigate(`/profile?username=${notif.sender_username}`);
     }
   };
 
@@ -119,9 +154,7 @@ export const Navbar: React.FC = () => {
                 return (
                   <div
                     key={notif.id}
-                    onClick={() => {
-                      if (isUnread) markAsRead(notif.id);
-                    }}
+                    onClick={() => handleNotificationClick(notif)}
                     className={`relative p-3.5 flex gap-3 text-xs transition-all duration-200 hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer group ${
                       isUnread
                         ? 'bg-emerald-50/15 dark:bg-emerald-950/5 border-l-2 border-emerald-500 font-medium'
@@ -168,7 +201,7 @@ export const Navbar: React.FC = () => {
                       )}
 
                       <span className="text-[10px] text-slate-400 dark:text-slate-500 block mt-1.5 font-normal">
-                        {formatTimeAgo(notif.created_at)}
+                        {formatTimeAgo(notif.created_at || notif.createdAt)}
                       </span>
                     </div>
 

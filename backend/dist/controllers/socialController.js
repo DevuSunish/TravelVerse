@@ -14,8 +14,12 @@ exports.addToWishlist = addToWishlist;
 exports.removeFromWishlist = removeFromWishlist;
 exports.getNotifications = getNotifications;
 exports.markNotificationRead = markNotificationRead;
+exports.markAllNotificationsRead = markAllNotificationsRead;
+exports.deleteNotification = deleteNotification;
+exports.deleteAllNotifications = deleteAllNotifications;
 const db_1 = require("../config/db");
 const tripController_1 = require("./tripController");
+const notificationService_1 = require("../services/notificationService");
 // 1. Recommendations CRUD
 async function createRecommendation(req, res) {
     try {
@@ -99,6 +103,21 @@ async function toggleLike(req, res) {
             }
             else {
                 await (0, db_1.query)('INSERT INTO likes (user_id, trip_id) VALUES ($1, $2)', [userId, trip_id]);
+                // Notify owner
+                const trip = await (0, db_1.query)('SELECT user_id, title FROM trips WHERE id = $1', [trip_id]);
+                if (trip.length > 0 && trip[0].user_id !== userId) {
+                    const sender = await (0, db_1.query)('SELECT username, profile_picture FROM users WHERE id = $1', [userId]);
+                    const senderUsername = sender[0]?.username || req.user?.username;
+                    const senderPic = sender[0]?.profile_picture || '';
+                    await (0, notificationService_1.createNotification)(trip[0].user_id, 'like', {
+                        message: `${senderUsername} liked your trip "${trip[0].title}".`,
+                        sender_id: userId,
+                        sender_username: senderUsername,
+                        sender_profile_picture: senderPic,
+                        trip_id,
+                        trip_title: trip[0].title
+                    });
+                }
                 return res.json({ liked: true });
             }
         }
@@ -110,6 +129,21 @@ async function toggleLike(req, res) {
             }
             else {
                 await (0, db_1.query)('INSERT INTO likes (user_id, recommendation_id) VALUES ($1, $2)', [userId, recommendation_id]);
+                // Notify owner
+                const rec = await (0, db_1.query)('SELECT user_id, title FROM recommendations WHERE id = $1', [recommendation_id]);
+                if (rec.length > 0 && rec[0].user_id !== userId) {
+                    const sender = await (0, db_1.query)('SELECT username, profile_picture FROM users WHERE id = $1', [userId]);
+                    const senderUsername = sender[0]?.username || req.user?.username;
+                    const senderPic = sender[0]?.profile_picture || '';
+                    await (0, notificationService_1.createNotification)(rec[0].user_id, 'like', {
+                        message: `${senderUsername} liked your recommendation "${rec[0].title}".`,
+                        sender_id: userId,
+                        sender_username: senderUsername,
+                        sender_profile_picture: senderPic,
+                        recommendation_id,
+                        recommendation_title: rec[0].title
+                    });
+                }
                 return res.json({ liked: true });
             }
         }
@@ -133,6 +167,38 @@ async function addComment(req, res) {
        FROM comments c 
        JOIN users u ON c.user_id = u.id 
        WHERE c.id = $1`, [comment[0].id]);
+        // Notify owner
+        const sender = await (0, db_1.query)('SELECT username, profile_picture FROM users WHERE id = $1', [userId]);
+        const senderUsername = sender[0]?.username || req.user?.username;
+        const senderPic = sender[0]?.profile_picture || '';
+        if (trip_id) {
+            const trip = await (0, db_1.query)('SELECT user_id, title FROM trips WHERE id = $1', [trip_id]);
+            if (trip.length > 0 && trip[0].user_id !== userId) {
+                await (0, notificationService_1.createNotification)(trip[0].user_id, 'comment', {
+                    message: `${senderUsername} commented on your trip "${trip[0].title}": "${content.substring(0, 30)}${content.length > 30 ? '...' : ''}"`,
+                    sender_id: userId,
+                    sender_username: senderUsername,
+                    sender_profile_picture: senderPic,
+                    trip_id,
+                    trip_title: trip[0].title,
+                    comment_content: content
+                });
+            }
+        }
+        else if (recommendation_id) {
+            const rec = await (0, db_1.query)('SELECT user_id, title FROM recommendations WHERE id = $1', [recommendation_id]);
+            if (rec.length > 0 && rec[0].user_id !== userId) {
+                await (0, notificationService_1.createNotification)(rec[0].user_id, 'comment', {
+                    message: `${senderUsername} commented on your recommendation "${rec[0].title}": "${content.substring(0, 30)}${content.length > 30 ? '...' : ''}"`,
+                    sender_id: userId,
+                    sender_username: senderUsername,
+                    sender_profile_picture: senderPic,
+                    recommendation_id,
+                    recommendation_title: rec[0].title,
+                    comment_content: content
+                });
+            }
+        }
         res.status(201).json({ comment: commentWithUser[0] });
     }
     catch (err) {
@@ -182,7 +248,15 @@ async function followUser(req, res) {
         }
         await (0, db_1.query)('INSERT INTO follows (follower_id, following_id) VALUES ($1, $2)', [followerId, userIdToFollow]);
         // Add notification
-        await (0, db_1.query)('INSERT INTO notifications (user_id, type, content) VALUES ($1, $2, $3)', [userIdToFollow, 'follow', `${req.user?.username} started following you.`]);
+        const sender = await (0, db_1.query)('SELECT username, profile_picture FROM users WHERE id = $1', [followerId]);
+        const senderUsername = sender[0]?.username || req.user?.username;
+        const senderPic = sender[0]?.profile_picture || '';
+        await (0, notificationService_1.createNotification)(userIdToFollow, 'follow', {
+            message: `${senderUsername} started following you.`,
+            sender_id: followerId,
+            sender_username: senderUsername,
+            sender_profile_picture: senderPic
+        });
         res.json({ followed: true });
     }
     catch (err) {
@@ -353,7 +427,7 @@ async function removeFromWishlist(req, res) {
 async function getNotifications(req, res) {
     try {
         const userId = req.user?.id;
-        const notifications = await (0, db_1.query)('SELECT * FROM notifications WHERE user_id = $1 ORDER BY created_at DESC LIMIT 20', [userId]);
+        const notifications = await (0, db_1.query)('SELECT * FROM notifications WHERE user_id = $1 ORDER BY created_at DESC LIMIT 50', [userId]);
         res.json({ notifications });
     }
     catch (err) {
@@ -371,5 +445,39 @@ async function markNotificationRead(req, res) {
     catch (err) {
         console.error('Read notification error:', err.message);
         res.status(500).json({ message: 'Server error marking notification read' });
+    }
+}
+async function markAllNotificationsRead(req, res) {
+    try {
+        const userId = req.user?.id;
+        await (0, db_1.query)('UPDATE notifications SET is_read = TRUE WHERE user_id = $1', [userId]);
+        res.json({ message: 'All notifications marked as read' });
+    }
+    catch (err) {
+        console.error('Mark all read error:', err.message);
+        res.status(500).json({ message: 'Server error marking all notifications read' });
+    }
+}
+async function deleteNotification(req, res) {
+    try {
+        const userId = req.user?.id;
+        const { id } = req.params;
+        await (0, db_1.query)('DELETE FROM notifications WHERE id = $1 AND user_id = $2', [id, userId]);
+        res.json({ message: 'Notification deleted' });
+    }
+    catch (err) {
+        console.error('Delete notification error:', err.message);
+        res.status(500).json({ message: 'Server error deleting notification' });
+    }
+}
+async function deleteAllNotifications(req, res) {
+    try {
+        const userId = req.user?.id;
+        await (0, db_1.query)('DELETE FROM notifications WHERE user_id = $1', [userId]);
+        res.json({ message: 'All notifications cleared' });
+    }
+    catch (err) {
+        console.error('Clear notifications error:', err.message);
+        res.status(500).json({ message: 'Server error clearing notifications' });
     }
 }

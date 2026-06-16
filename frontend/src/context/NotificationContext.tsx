@@ -8,6 +8,7 @@ export interface ParsedNotification {
   type: string;
   is_read: boolean;
   created_at: string;
+  createdAt?: string;
   message: string;
   sender_id?: number;
   sender_username?: string;
@@ -60,6 +61,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
           type: notif.type,
           is_read: Boolean(notif.is_read === 1 || notif.is_read === true),
           created_at: notif.created_at,
+          createdAt: notif.created_at || notif.createdAt,
           message: parsedContent.message || 'New notification',
           ...parsedContent
         };

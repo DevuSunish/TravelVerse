@@ -19,9 +19,10 @@ export interface Trip {
 interface TripCardProps {
   trip: Trip;
   onDelete?: (id: number) => void;
+  isOwner?: boolean;
 }
 
-export const TripCard: React.FC<TripCardProps> = ({ trip, onDelete }) => {
+export const TripCard: React.FC<TripCardProps> = ({ trip, onDelete, isOwner = true }) => {
   // Format Date Range
   const formatDateRange = () => {
     if (!trip.start_date) return 'Flexible Dates';
@@ -81,11 +82,17 @@ export const TripCard: React.FC<TripCardProps> = ({ trip, onDelete }) => {
           <span>{trip.city ? `${trip.city}, ` : ''}{trip.country}</span>
         </div>
 
-        <Link to={`/trips/${trip.id}`} className="hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors duration-200">
+        {isOwner ? (
+          <Link to={`/trips/${trip.id}`} className="hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors duration-200">
+            <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100 line-clamp-1 mb-2">
+              {trip.title}
+            </h3>
+          </Link>
+        ) : (
           <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100 line-clamp-1 mb-2">
             {trip.title}
           </h3>
-        </Link>
+        )}
 
         <p className="text-sm text-slate-500 dark:text-slate-400 line-clamp-2 mb-4 flex-1">
           {trip.description || 'No stories added yet. Click to document your travel memories!'}
@@ -113,22 +120,24 @@ export const TripCard: React.FC<TripCardProps> = ({ trip, onDelete }) => {
         </div>
 
         {/* Action Buttons */}
-        <div className="mt-4 flex gap-2">
-          <Link
-            to={`/trips/${trip.id}`}
-            className="flex-1 text-center py-2 px-3 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/40 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-          >
-            Manage Trip
-          </Link>
-          {onDelete && (
-            <button
-              onClick={() => onDelete(trip.id)}
-              className="py-2 px-3 border border-rose-100 dark:border-rose-950/20 rounded-xl text-xs font-semibold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/10 transition-colors"
+        {isOwner && (
+          <div className="mt-4 flex gap-2">
+            <Link
+              to={`/trips/${trip.id}`}
+              className="flex-1 text-center py-2 px-3 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/40 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
             >
-              Delete
-            </button>
-          )}
-        </div>
+              Manage Trip
+            </Link>
+            {onDelete && (
+              <button
+                onClick={() => onDelete(trip.id)}
+                className="py-2 px-3 border border-rose-100 dark:border-rose-950/20 rounded-xl text-xs font-semibold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/10 transition-colors"
+              >
+                Delete
+              </button>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

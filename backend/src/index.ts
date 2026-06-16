@@ -2,12 +2,16 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import { initDB } from './config/db';
+import path from 'path';
 import apiRoutes from './routes/api';
 
 dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 5000;
+
+// Serve uploaded profile pictures statically
+app.use('/uploads', express.static(path.resolve(__dirname, '../uploads')));
 
 // Enable CORS
 app.use(cors());
@@ -32,6 +36,15 @@ app.get('/', (req, res) => {
 
 // API routes mapping
 app.use('/api', apiRoutes);
+
+// Global error handler middleware
+app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+  console.error('Unhandled server error:', err.message || err);
+  const status = err.status || err.statusCode || 500;
+  res.status(status).json({
+    message: err.message || 'An unexpected error occurred on the server'
+  });
+});
 
 // Database initialization & server start
 async function startServer() {
