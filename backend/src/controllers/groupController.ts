@@ -2,6 +2,7 @@ import { Response } from 'express';
 import { query } from '../config/db';
 import { AuthRequest } from '../middleware/auth';
 import { createNotification, notifyGroupMembers } from '../services/notificationService';
+import { isUserOnline } from './chatController';
 
 export async function createGroup(req: AuthRequest, res: Response) {
   try {
@@ -9,7 +10,7 @@ export async function createGroup(req: AuthRequest, res: Response) {
     if (!userId) {
       return res.status(401).json({ message: 'Unauthorized' });
     }
-    const { name, description } = req.body;
+    const { name, description, cover_image, members } = req.body;
 
     if (!name) {
       return res.status(400).json({ message: 'Group name is required' });
@@ -17,8 +18,8 @@ export async function createGroup(req: AuthRequest, res: Response) {
 
     // Insert group
     const groups = await query(
-      'INSERT INTO travel_groups (name, description) VALUES ($1, $2) RETURNING *',
-      [name, description || '']
+      'INSERT INTO travel_groups (name, description, cover_image) VALUES ($1, $2, $3) RETURNING *',
+      [name, description || '', cover_image || null]
     );
     const group = groups[0];
 
@@ -27,6 +28,49 @@ export async function createGroup(req: AuthRequest, res: Response) {
       'INSERT INTO group_members (group_id, user_id, role, status) VALUES ($1, $2, $3, $4)',
       [group.id, userId, 'admin', 'accepted']
     );
+
+    // Invite members if provided
+    if (Array.isArray(members) && members.length > 0) {
+      const creatorInfo = await query('SELECT username, CASE WHEN profile_picture IS NOT NULL AND profile_picture != \'\' THEN profile_picture ELSE COALESCE(avatar_url, \'https://api.dicebear.com/7.x/adventurer/svg?seed=\' || username) END AS profile_picture FROM users WHERE id = $1', [userId]);
+      const creatorUsername = creatorInfo[0]?.username || req.user?.username;
+      const creatorPic = creatorInfo[0]?.profile_picture || '';
+
+      for (const usernameToInvite of members) {
+        if (!usernameToInvite || usernameToInvite.trim() === creatorUsername) continue;
+
+        // Find the user to invite
+        const users = await query('SELECT id FROM users WHERE username = $1', [usernameToInvite.trim()]);
+        if (users.length === 0) continue;
+        const inviteeId = users[0].id;
+
+        // Check if already member
+        const existing = await query(
+          'SELECT 1 FROM group_members WHERE group_id = $1 AND user_id = $2',
+          [group.id, inviteeId]
+        );
+        if (existing.length > 0) continue;
+
+        // Add invitation
+        await query(
+          'INSERT INTO group_members (group_id, user_id, role, status) VALUES ($1, $2, $3, $4)',
+          [group.id, inviteeId, 'member', 'pending']
+        );
+
+        // Notify invitee
+        const content = {
+          message: `${creatorUsername} invited you to join the travel group "${name}".`,
+          sender_id: userId,
+          sender_username: creatorUsername,
+          sender_profile_picture: creatorPic,
+          group_id: group.id,
+          group_name: name,
+          inviter_id: userId,
+          inviter_username: creatorUsername
+        };
+
+        await createNotification(inviteeId, 'group_invite', content);
+      }
+    }
 
     res.status(201).json({ group });
   } catch (err: any) {
@@ -109,7 +153,7 @@ export async function inviteMember(req: AuthRequest, res: Response) {
     );
 
     // Create a notification for the invited user
-    const inviter = await query('SELECT username, COALESCE(profile_picture, avatar_url, \'https://api.dicebear.com/7.x/adventurer/svg?seed=\' || username) AS profile_picture FROM users WHERE id = $1', [userId]);
+    const inviter = await query('SELECT username, CASE WHEN profile_picture IS NOT NULL AND profile_picture != \'\' THEN profile_picture ELSE COALESCE(avatar_url, \'https://api.dicebear.com/7.x/adventurer/svg?seed=\' || username) END AS profile_picture FROM users WHERE id = $1', [userId]);
     const inviterUsername = inviter[0]?.username || req.user?.username;
     const inviterPic = inviter[0]?.profile_picture || '';
     const group = await query('SELECT name FROM travel_groups WHERE id = $1', [groupId]);
@@ -178,7 +222,7 @@ export async function respondToInvitation(req: AuthRequest, res: Response) {
       }
     }
 
-    const responder = await query('SELECT username, COALESCE(profile_picture, avatar_url, \'https://api.dicebear.com/7.x/adventurer/svg?seed=\' || username) AS profile_picture FROM users WHERE id = $1', [userId]);
+    const responder = await query('SELECT username, CASE WHEN profile_picture IS NOT NULL AND profile_picture != \'\' THEN profile_picture ELSE COALESCE(avatar_url, \'https://api.dicebear.com/7.x/adventurer/svg?seed=\' || username) END AS profile_picture FROM users WHERE id = $1', [userId]);
     const responderUsername = responder[0]?.username || req.user?.username;
     const responderPic = responder[0]?.profile_picture || '';
 
@@ -255,13 +299,18 @@ export async function getGroupDetails(req: AuthRequest, res: Response) {
     const group = groups[0];
 
     // Get members
-    const members = await query(
-      `SELECT u.id, u.username, COALESCE(u.profile_picture, u.avatar_url, 'https://api.dicebear.com/7.x/adventurer/svg?seed=' || u.username) AS profile_picture, u.home_country, m.role, m.status 
+    const rawMembers = await query(
+      `SELECT u.id, u.username, u.last_seen, CASE WHEN u.profile_picture IS NOT NULL AND u.profile_picture != '' THEN u.profile_picture ELSE COALESCE(u.avatar_url, 'https://api.dicebear.com/7.x/adventurer/svg?seed=' || u.username) END AS profile_picture, u.home_country, m.role, m.status 
        FROM users u
        JOIN group_members m ON u.id = m.user_id
        WHERE m.group_id = $1`,
       [id]
     );
+
+    const members = rawMembers.map((m: any) => ({
+      ...m,
+      is_online: isUserOnline(m.last_seen)
+    }));
 
     // Get group itineraries
     const itineraries = await query(
@@ -435,3 +484,146 @@ export async function createGroupActivity(req: AuthRequest, res: Response) {
     res.status(500).json({ message: 'Server error adding group activity' });
   }
 }
+
+export async function updateGroup(req: AuthRequest, res: Response) {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+    const { id } = req.params;
+    const { name, description, cover_image } = req.body;
+
+    // Verify current user is admin of group
+    const membership = await query(
+      'SELECT role FROM group_members WHERE group_id = $1 AND user_id = $2 AND status = \'accepted\'',
+      [id, userId]
+    );
+    if (membership.length === 0 || membership[0].role !== 'admin') {
+      return res.status(403).json({ message: 'Only admins can modify group settings' });
+    }
+
+    // Update group info
+    const updated = await query(
+      'UPDATE travel_groups SET name = COALESCE($1, name), description = COALESCE($2, description), cover_image = COALESCE($3, cover_image), updated_at = CURRENT_TIMESTAMP WHERE id = $4 RETURNING *',
+      [name, description, cover_image, id]
+    );
+
+    if (updated.length === 0) {
+      return res.status(404).json({ message: 'Group not found' });
+    }
+
+    res.json({ group: updated[0] });
+  } catch (err: any) {
+    console.error('Update group error:', err.message);
+    res.status(500).json({ message: 'Server error updating group' });
+  }
+}
+
+export async function removeGroupMember(req: AuthRequest, res: Response) {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+    const { groupId, memberUserId } = req.params;
+
+    // Verify requesting user is admin of the group
+    const requesterMembership = await query(
+      'SELECT role FROM group_members WHERE group_id = $1 AND user_id = $2 AND status = \'accepted\'',
+      [groupId, userId]
+    );
+    if (requesterMembership.length === 0 || requesterMembership[0].role !== 'admin') {
+      return res.status(403).json({ message: 'Only admins can remove members' });
+    }
+
+    if (Number(memberUserId) === userId) {
+      return res.status(400).json({ message: 'Admins cannot remove themselves' });
+    }
+
+    // Delete member
+    await query(
+      'DELETE FROM group_members WHERE group_id = $1 AND user_id = $2',
+      [groupId, memberUserId]
+    );
+
+    // Notify other members
+    const removedUser = await query('SELECT username FROM users WHERE id = $1', [memberUserId]);
+    const removedUsername = removedUser[0]?.username || 'A traveler';
+    const groupInfo = await query('SELECT name FROM travel_groups WHERE id = $1', [groupId]);
+    const groupName = groupInfo[0]?.name || 'the group';
+
+    notifyGroupMembers(
+      Number(groupId),
+      userId,
+      `${removedUsername} was removed from "${groupName}" by admin.`,
+      { action: 'remove', removed_user_id: memberUserId }
+    ).catch(e => console.error('Failed to notify group members:', e.message));
+
+    res.json({ message: 'Member removed successfully' });
+  } catch (err: any) {
+    console.error('Remove member error:', err.message);
+    res.status(500).json({ message: 'Server error removing member' });
+  }
+}
+
+// Leave group
+export async function leaveGroup(req: AuthRequest, res: Response) {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+    const { groupId } = req.params;
+
+    // Check membership and role
+    const membership = await query(
+      'SELECT role FROM group_members WHERE group_id = $1 AND user_id = $2 AND status = \'accepted\'',
+      [groupId, userId]
+    );
+
+    if (membership.length === 0) {
+      return res.status(404).json({ message: 'You are not an active member of this group' });
+    }
+
+    const role = membership[0].role;
+
+    if (role === 'admin') {
+      // Check if there are other admins in the group
+      const otherAdmins = await query(
+        'SELECT 1 FROM group_members WHERE group_id = $1 AND role = \'admin\' AND user_id != $2 AND status = \'accepted\'',
+        [groupId, userId]
+      );
+      if (otherAdmins.length === 0) {
+        return res.status(400).json({ 
+          message: 'As the group owner/admin, you cannot leave the group. Please promote another member to admin first or delete the group.' 
+        });
+      }
+    }
+
+    // Delete the member record
+    await query(
+      'DELETE FROM group_members WHERE group_id = $1 AND user_id = $2',
+      [groupId, userId]
+    );
+
+    // Notify other members that the user left
+    const userResult = await query('SELECT username FROM users WHERE id = $1', [userId]);
+    const username = userResult[0]?.username || 'A traveler';
+    const groupResult = await query('SELECT name FROM travel_groups WHERE id = $1', [groupId]);
+    const groupName = groupResult[0]?.name || 'the group';
+
+    notifyGroupMembers(
+      Number(groupId),
+      userId,
+      `${username} has left the group "${groupName}".`,
+      { action: 'leave', user_id: userId }
+    ).catch(e => console.error('Failed to notify group members:', e.message));
+
+    res.json({ message: 'Successfully left the group' });
+  } catch (err: any) {
+    console.error('Leave group error:', err.message);
+    res.status(500).json({ message: 'Server error leaving group' });
+  }
+}
+

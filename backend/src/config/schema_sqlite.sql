@@ -7,6 +7,8 @@ DROP TABLE IF EXISTS itineraries;
 DROP TABLE IF EXISTS activities;
 DROP TABLE IF EXISTS group_members;
 DROP TABLE IF EXISTS travel_groups;
+DROP TABLE IF EXISTS messages;
+DROP TABLE IF EXISTS conversations;
 DROP TABLE IF EXISTS wishlists;
 DROP TABLE IF EXISTS likes;
 DROP TABLE IF EXISTS comments;
@@ -134,6 +136,7 @@ CREATE TABLE travel_groups (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,
     description TEXT,
+    cover_image TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -251,3 +254,25 @@ INSERT INTO follows (follower_id, following_id) VALUES
 (1, 2),
 (2, 1),
 (3, 1);
+
+-- Conversations Table
+CREATE TABLE conversations (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user1_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    user2_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(user1_id, user2_id)
+);
+
+-- Messages Table
+CREATE TABLE messages (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    conversation_id INTEGER REFERENCES conversations(id) ON DELETE CASCADE,
+    group_id INTEGER REFERENCES travel_groups(id) ON DELETE CASCADE,
+    sender_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    message_text TEXT NOT NULL,
+    message_type TEXT DEFAULT 'text',
+    attachment_url TEXT,
+    is_read BOOLEAN DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);

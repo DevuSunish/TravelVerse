@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { apiRequest } from '../services/api';
+import { apiRequest, API_BASE_URL } from '../services/api';
 import { RecommendationCard, Recommendation } from '../components/RecommendationCard';
 import { 
-  Search, Plus, X, Star, Compass, AlertCircle
+  Search, Plus, X, Star, Compass, AlertCircle, Upload
 } from 'lucide-react';
 
 export const RecommendationsFeed: React.FC = () => {
@@ -27,6 +27,90 @@ export const RecommendationsFeed: React.FC = () => {
   const [photos, setPhotos] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Direct Upload states
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [dragActive, setDragActive] = useState(false);
+
+  const handleDrag = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.type === "dragenter" || e.type === "dragover") {
+      setDragActive(true);
+    } else if (e.type === "dragleave") {
+      setDragActive(false);
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragActive(false);
+
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      handleFileChange(e.dataTransfer.files[0]);
+    }
+  };
+
+  const handleFileChange = async (file: File) => {
+    if (!file) return;
+
+    const preview = URL.createObjectURL(file);
+    setPreviewUrl(preview);
+    setUploading(true);
+    setError(null);
+
+    const formData = new FormData();
+    formData.append('profilePicture', file);
+
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API_BASE_URL}/auth/profile/upload`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        },
+        body: formData
+      });
+
+      let data: any = null;
+      const contentType = response.headers.get('content-type');
+      if (contentType && contentType.includes('application/json')) {
+        data = await response.json();
+      }
+
+      if (response.ok && data?.url) {
+        setPhotos(data.url);
+      } else {
+        setError(data?.message || 'Failed to upload image.');
+        setPreviewUrl(null);
+      }
+    } catch (err) {
+      console.error('Upload error:', err);
+      setError('Failed to upload image.');
+      setPreviewUrl(null);
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const resetFormStates = () => {
+    setPlaceName('');
+    setCountry('');
+    setCategory('Food');
+    setRating(5);
+    setReview('');
+    setTips('');
+    setEstimatedCost('');
+    setHowToReach('');
+    setBestTimeToVisit('');
+    setPhotos('');
+    if (previewUrl) {
+      URL.revokeObjectURL(previewUrl);
+    }
+    setPreviewUrl(null);
+  };
 
   const categoriesList = ['Food', 'Nature', 'Beach', 'Adventure', 'Shopping', 'Historical', 'Other'];
 
@@ -94,17 +178,7 @@ export const RecommendationsFeed: React.FC = () => {
         body
       });
 
-      // Clear states
-      setPlaceName('');
-      setCountry('');
-      setCategory('Food');
-      setRating(5);
-      setReview('');
-      setTips('');
-      setEstimatedCost('');
-      setHowToReach('');
-      setBestTimeToVisit('');
-      setPhotos('');
+      resetFormStates();
       setShowForm(false);
       fetchRecommendations();
     } catch (err: unknown) {
@@ -221,7 +295,7 @@ export const RecommendationsFeed: React.FC = () => {
             
             <div className="flex justify-between items-center mb-6">
               <h3 className="text-xl font-bold font-serif text-slate-800 dark:text-slate-100">Share Attraction</h3>
-              <button onClick={() => setShowForm(false)} className="text-slate-400 hover:text-slate-650">
+              <button onClick={() => { resetFormStates(); setShowForm(false); }} className="text-slate-400 hover:text-slate-650">
                 <X className="h-5 w-5" />
               </button>
             </div>
@@ -326,14 +400,64 @@ export const RecommendationsFeed: React.FC = () => {
               </div>
 
               <div className="space-y-1">
-                <label className="text-[10px] uppercase font-bold text-slate-450">Photo URL</label>
-                <input
-                  type="url"
-                  placeholder="https://images.unsplash.com/..."
-                  value={photos}
-                  onChange={(e) => setPhotos(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs dark:bg-slate-950 dark:border-slate-850 dark:text-white"
-                />
+                <label className="text-[10px] uppercase font-bold text-slate-450">Photo</label>
+                <div 
+                  onDragEnter={handleDrag}
+                  onDragOver={handleDrag}
+                  onDragLeave={handleDrag}
+                  onDrop={handleDrop}
+                  className={`relative flex flex-col items-center justify-center border-2 border-dashed rounded-2xl p-4 transition-all min-h-[120px] ${
+                    dragActive 
+                      ? 'border-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/20' 
+                      : 'border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 hover:bg-slate-100/50 dark:hover:bg-slate-900/50'
+                  }`}
+                >
+                  {previewUrl || photos ? (
+                    <div className="relative w-full h-[120px] rounded-xl overflow-hidden group">
+                      <img 
+                        src={previewUrl || photos} 
+                        alt="Attraction preview" 
+                        className="w-full h-full object-cover" 
+                      />
+                      {uploading && (
+                        <div className="absolute inset-0 bg-black/40 backdrop-blur-xs flex flex-col items-center justify-center text-white">
+                          <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-white mb-1" />
+                          <span className="text-[9px] font-bold uppercase tracking-wider">Uploading...</span>
+                        </div>
+                      )}
+                      {!uploading && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setPhotos('');
+                            setPreviewUrl(null);
+                          }}
+                          className="absolute top-2 right-2 p-1 bg-black/60 hover:bg-rose-600 text-white rounded-lg transition-colors cursor-pointer"
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  ) : (
+                    <label className="flex flex-col items-center justify-center cursor-pointer w-full h-full py-2 text-center">
+                      <Upload className="h-6 w-6 text-slate-400 dark:text-slate-600 mb-1" />
+                      <p className="text-xs text-slate-650 dark:text-slate-400 font-medium">
+                        Drag and drop your image, or <span className="text-emerald-500 font-bold hover:underline">browse</span>
+                      </p>
+                      <p className="text-[8px] text-slate-400 mt-0.5 uppercase font-bold tracking-wider">PNG, JPG, GIF up to 5MB</p>
+                      <input 
+                        type="file" 
+                        accept="image/*"
+                        onChange={(e) => {
+                          if (e.target.files && e.target.files[0]) {
+                            handleFileChange(e.target.files[0]);
+                          }
+                        }}
+                        className="hidden" 
+                      />
+                    </label>
+                  )}
+                </div>
               </div>
 
               <div className="space-y-1">
@@ -362,17 +486,17 @@ export const RecommendationsFeed: React.FC = () => {
               <div className="pt-4 flex gap-3">
                 <button
                   type="button"
-                  onClick={() => setShowForm(false)}
+                  onClick={() => { resetFormStates(); setShowForm(false); }}
                   className="flex-1 py-3 border border-slate-200 rounded-xl text-xs font-bold text-slate-500 dark:border-slate-850 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  disabled={submitting}
+                  disabled={submitting || uploading}
                   className="flex-1 py-3 bg-emerald-500 hover:bg-emerald-600 disabled:bg-emerald-450 text-white font-bold rounded-xl text-xs transition-colors"
                 >
-                  {submitting ? 'Submitting...' : 'Post Recommendation'}
+                  {submitting ? 'Submitting...' : uploading ? 'Uploading image...' : 'Post Recommendation'}
                 </button>
               </div>
             </form>
