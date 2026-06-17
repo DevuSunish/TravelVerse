@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
@@ -8,6 +8,7 @@ import {
   Sun, Moon, Menu, X, LogOut, User as UserIcon, Settings, Calendar,
   Bell, Trash2, Check, Heart, MessageSquare
 } from 'lucide-react';
+import { apiRequest } from '../services/api';
 
 export const Navbar: React.FC = () => {
   const { user, logout } = useAuth();
@@ -26,6 +27,24 @@ export const Navbar: React.FC = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [notifDropdownOpen, setNotifDropdownOpen] = useState(false);
+  const [unreadChatCount, setUnreadChatCount] = useState(0);
+
+  useEffect(() => {
+    if (!user) return;
+
+    const fetchUnreadCount = async () => {
+      try {
+        const data = await apiRequest<{ count: number }>('/chat/unread-count');
+        setUnreadChatCount(data.count);
+      } catch (err) {
+        console.error('Failed to fetch unread chat count:', err);
+      }
+    };
+
+    fetchUnreadCount();
+    const interval = setInterval(fetchUnreadCount, 5000);
+    return () => clearInterval(interval);
+  }, [user]);
 
   const formatTimeAgo = (dateString: string) => {
     if (!dateString) return 'Just now';
@@ -104,6 +123,14 @@ export const Navbar: React.FC = () => {
     setNotifDropdownOpen(false);
     if (notif.type === 'follow' && notif.sender_username) {
       navigate(`/profile?username=${notif.sender_username}`);
+    } else if (notif.type === 'direct_message' && notif.conversation_id) {
+      navigate(`/groups?conversationId=${notif.conversation_id}`);
+    } else if (notif.type === 'group_message' && notif.group_id) {
+      navigate(`/groups?groupId=${notif.group_id}`);
+    } else if (notif.type === 'group_invite' && notif.group_id) {
+      navigate(`/groups?groupId=${notif.group_id}`);
+    } else if ((notif.type === 'group_accept' || notif.type === 'group_decline') && notif.group_id) {
+      navigate(`/groups?groupId=${notif.group_id}`);
     }
   };
 
@@ -245,7 +272,7 @@ export const Navbar: React.FC = () => {
     { name: 'Trips', path: '/trips', icon: Map },
     { name: 'Recommendations', path: '/recommendations', icon: Award },
     { name: 'Planner', path: '/planner', icon: Calendar },
-    { name: 'Groups', path: '/groups', icon: Compass },
+    { name: 'Chats', path: '/groups', icon: MessageSquare },
     { name: 'AI Assistant', path: '/ai-assistant', icon: Sparkles },
   ];
 
@@ -279,7 +306,14 @@ export const Navbar: React.FC = () => {
                       : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800/60'
                   }`}
                 >
-                  <Icon className="h-4.5 w-4.5" />
+                  <div className="relative">
+                    <Icon className="h-4.5 w-4.5" />
+                    {link.name === 'Chats' && unreadChatCount > 0 && (
+                      <span className="absolute -top-1.5 -right-1.5 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-rose-500 text-[8px] font-bold text-white">
+                        {unreadChatCount}
+                      </span>
+                    )}
+                  </div>
                   {link.name}
                 </Link>
               );
@@ -413,7 +447,14 @@ export const Navbar: React.FC = () => {
                       : 'text-slate-600 hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-800'
                   }`}
                 >
-                  <Icon className="h-5 w-5" />
+                  <div className="relative">
+                    <Icon className="h-5 w-5" />
+                    {link.name === 'Chats' && unreadChatCount > 0 && (
+                      <span className="absolute -top-1 -right-1 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-rose-500 text-[8px] font-bold text-white">
+                        {unreadChatCount}
+                      </span>
+                    )}
+                  </div>
                   {link.name}
                 </Link>
               );

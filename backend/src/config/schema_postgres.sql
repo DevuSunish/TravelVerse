@@ -7,6 +7,8 @@ DROP TABLE IF EXISTS itineraries CASCADE;
 DROP TABLE IF EXISTS activities CASCADE;
 DROP TABLE IF EXISTS group_members CASCADE;
 DROP TABLE IF EXISTS travel_groups CASCADE;
+DROP TABLE IF EXISTS messages CASCADE;
+DROP TABLE IF EXISTS conversations CASCADE;
 DROP TABLE IF EXISTS wishlists CASCADE;
 DROP TABLE IF EXISTS likes CASCADE;
 DROP TABLE IF EXISTS comments CASCADE;
@@ -134,6 +136,7 @@ CREATE TABLE travel_groups (
     id SERIAL PRIMARY KEY,
     name VARCHAR(100) NOT NULL,
     description TEXT,
+    cover_image VARCHAR(255),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -251,3 +254,25 @@ INSERT INTO follows (follower_id, following_id) VALUES
 (1, 2),
 (2, 1),
 (3, 1);
+
+-- Conversations Table
+CREATE TABLE conversations (
+    id SERIAL PRIMARY KEY,
+    user1_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    user2_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(user1_id, user2_id)
+);
+
+-- Messages Table
+CREATE TABLE messages (
+    id SERIAL PRIMARY KEY,
+    conversation_id INT REFERENCES conversations(id) ON DELETE CASCADE,
+    group_id INT REFERENCES travel_groups(id) ON DELETE CASCADE,
+    sender_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    message_text TEXT NOT NULL,
+    message_type VARCHAR(50) DEFAULT 'text',
+    attachment_url VARCHAR(255),
+    is_read BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);

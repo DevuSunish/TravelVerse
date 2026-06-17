@@ -108,6 +108,90 @@ async function runMigrations() {
     // Suppress error if the column already exists
     console.log('Database column check (cover_picture):', err.message);
   }
+
+  try {
+    if (isSQLite) {
+      await query('ALTER TABLE travel_groups ADD COLUMN cover_image TEXT');
+    } else {
+      await query('ALTER TABLE travel_groups ADD COLUMN cover_image VARCHAR(255)');
+    }
+    console.log('Successfully added cover_image column to travel_groups table');
+  } catch (err: any) {
+    console.log('Database column check (travel_groups.cover_image):', err.message);
+  }
+
+  try {
+    if (isSQLite) {
+      await query(`
+        CREATE TABLE IF NOT EXISTS conversations (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          user1_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          user2_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          UNIQUE(user1_id, user2_id)
+        )
+      `);
+    } else {
+      await query(`
+        CREATE TABLE IF NOT EXISTS conversations (
+          id SERIAL PRIMARY KEY,
+          user1_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          user2_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          UNIQUE(user1_id, user2_id)
+        )
+      `);
+    }
+    console.log('Checked/created conversations table');
+  } catch (err: any) {
+    console.error('Failed to migrate conversations table:', err.message);
+  }
+
+  try {
+    if (isSQLite) {
+      await query(`
+        CREATE TABLE IF NOT EXISTS messages (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          conversation_id INTEGER REFERENCES conversations(id) ON DELETE CASCADE,
+          group_id INTEGER REFERENCES travel_groups(id) ON DELETE CASCADE,
+          sender_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          message_text TEXT NOT NULL,
+          message_type TEXT DEFAULT 'text',
+          attachment_url TEXT,
+          is_read BOOLEAN DEFAULT 0,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+      `);
+    } else {
+      await query(`
+        CREATE TABLE IF NOT EXISTS messages (
+          id SERIAL PRIMARY KEY,
+          conversation_id INT REFERENCES conversations(id) ON DELETE CASCADE,
+          group_id INT REFERENCES travel_groups(id) ON DELETE CASCADE,
+          sender_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          message_text TEXT NOT NULL,
+          message_type VARCHAR(50) DEFAULT 'text',
+          attachment_url VARCHAR(255),
+          is_read BOOLEAN DEFAULT FALSE,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+      `);
+    }
+    console.log('Checked/created messages table');
+  } catch (err: any) {
+    console.error('Failed to migrate messages table:', err.message);
+  }
+
+  try {
+    if (isSQLite) {
+      await query('ALTER TABLE users ADD COLUMN last_seen TEXT');
+    } else {
+      await query('ALTER TABLE users ADD COLUMN last_seen TIMESTAMP');
+    }
+    console.log('Successfully added last_seen column to users table');
+  } catch (err: any) {
+    console.log('Database column check (last_seen):', err.message);
+  }
 }
 
 // Execute PostgreSQL Schema Migration

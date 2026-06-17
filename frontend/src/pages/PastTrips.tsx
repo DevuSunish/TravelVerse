@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { apiRequest } from '../services/api';
+import { apiRequest, API_BASE_URL } from '../services/api';
 import { TripCard, Trip } from '../components/TripCard';
 import { LeafletMap } from '../components/LeafletMap';
 import { 
   Plus, Grid, List, Map, 
-  X, Check, Compass
+  X, Check, Compass, Upload
 } from 'lucide-react';
 
 export const PastTrips: React.FC = () => {
@@ -39,6 +39,89 @@ export const PastTrips: React.FC = () => {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Direct Upload states
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [dragActive, setDragActive] = useState(false);
+
+  const handleDrag = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.type === "dragenter" || e.type === "dragover") {
+      setDragActive(true);
+    } else if (e.type === "dragleave") {
+      setDragActive(false);
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragActive(false);
+
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      handleFileChange(e.dataTransfer.files[0]);
+    }
+  };
+
+  const handleFileChange = async (file: File) => {
+    if (!file) return;
+
+    const preview = URL.createObjectURL(file);
+    setPreviewUrl(preview);
+    setUploading(true);
+    setError(null);
+
+    const formData = new FormData();
+    formData.append('profilePicture', file);
+
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API_BASE_URL}/auth/profile/upload`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        },
+        body: formData
+      });
+
+      let data: any = null;
+      const contentType = response.headers.get('content-type');
+      if (contentType && contentType.includes('application/json')) {
+        data = await response.json();
+      }
+
+      if (response.ok && data?.url) {
+        setCoverImage(data.url);
+      } else {
+        setError(data?.message || 'Failed to upload cover image.');
+        setPreviewUrl(null);
+      }
+    } catch (err) {
+      console.error('Upload error:', err);
+      setError('Failed to upload cover image.');
+      setPreviewUrl(null);
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const resetFormStates = () => {
+    setTitle('');
+    setCountry('');
+    setCity('');
+    setStartDate('');
+    setEndDate('');
+    setDescription('');
+    setStatus('past');
+    setCoverImage('');
+    setBudget('');
+    if (previewUrl) {
+      URL.revokeObjectURL(previewUrl);
+    }
+    setPreviewUrl(null);
+  };
+
   const fetchTrips = async () => {
     setLoading(true);
     try {
@@ -58,6 +141,7 @@ export const PastTrips: React.FC = () => {
 
   const handleCloseForm = () => {
     setShowForm(false);
+    resetFormStates();
   };
 
   const handleCreateTrip = async (e: React.FormEvent) => {
@@ -90,16 +174,7 @@ export const PastTrips: React.FC = () => {
       });
 
       if (res.trip) {
-        // Reset form
-        setTitle('');
-        setCountry('');
-        setCity('');
-        setStartDate('');
-        setEndDate('');
-        setDescription('');
-        setStatus('past');
-        setCoverImage('');
-        setBudget('');
+        resetFormStates();
         handleCloseForm();
         fetchTrips();
       }
@@ -390,17 +465,7 @@ export const PastTrips: React.FC = () => {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="space-y-1">
-                  <label className="text-[10px] uppercase font-bold text-slate-500">Cover Image URL</label>
-                  <input
-                    type="url"
-                    placeholder="https://images.unsplash.com/..."
-                    value={coverImage}
-                    onChange={(e) => setCoverImage(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs dark:bg-slate-950 dark:border-slate-850 dark:text-white"
-                  />
-                </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
                 <div className="space-y-1">
                   <label className="text-[10px] uppercase font-bold text-slate-500">Total Budget (USD)</label>
                   <input
@@ -413,7 +478,68 @@ export const PastTrips: React.FC = () => {
                 </div>
               </div>
 
-              <div className="space-y-1">
+              <div className="space-y-1 mt-4">
+                <label className="text-[10px] uppercase font-bold text-slate-500">Cover Image</label>
+                <div 
+                  onDragEnter={handleDrag}
+                  onDragOver={handleDrag}
+                  onDragLeave={handleDrag}
+                  onDrop={handleDrop}
+                  className={`relative flex flex-col items-center justify-center border-2 border-dashed rounded-2xl p-4 transition-all min-h-[120px] ${
+                    dragActive 
+                      ? 'border-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/20' 
+                      : 'border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 hover:bg-slate-100/50 dark:hover:bg-slate-900/50'
+                  }`}
+                >
+                  {previewUrl || coverImage ? (
+                    <div className="relative w-full h-[120px] rounded-xl overflow-hidden group">
+                      <img 
+                        src={previewUrl || coverImage} 
+                        alt="Cover preview" 
+                        className="w-full h-full object-cover" 
+                      />
+                      {uploading && (
+                        <div className="absolute inset-0 bg-black/40 backdrop-blur-xs flex flex-col items-center justify-center text-white">
+                          <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-white mb-1" />
+                          <span className="text-[9px] font-bold uppercase tracking-wider">Uploading...</span>
+                        </div>
+                      )}
+                      {!uploading && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setCoverImage('');
+                            setPreviewUrl(null);
+                          }}
+                          className="absolute top-2 right-2 p-1 bg-black/60 hover:bg-rose-600 text-white rounded-lg transition-colors cursor-pointer"
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  ) : (
+                    <label className="flex flex-col items-center justify-center cursor-pointer w-full h-full py-2 text-center">
+                      <Upload className="h-6 w-6 text-slate-400 dark:text-slate-600 mb-1" />
+                      <p className="text-xs text-slate-650 dark:text-slate-400 font-medium">
+                        Drag and drop your image, or <span className="text-emerald-500 font-bold hover:underline">browse</span>
+                      </p>
+                      <p className="text-[8px] text-slate-400 mt-0.5 uppercase font-bold tracking-wider">PNG, JPG, GIF up to 5MB</p>
+                      <input 
+                        type="file" 
+                        accept="image/*"
+                        onChange={(e) => {
+                          if (e.target.files && e.target.files[0]) {
+                            handleFileChange(e.target.files[0]);
+                          }
+                        }}
+                        className="hidden" 
+                      />
+                    </label>
+                  )}
+                </div>
+              </div>
+
+              <div className="space-y-1 mt-4">
                 <label className="text-[10px] uppercase font-bold text-slate-500">Description / Memories</label>
                 <textarea
                   placeholder="Tell your story. What was the best part of this adventure?"
@@ -434,15 +560,14 @@ export const PastTrips: React.FC = () => {
                 </button>
                 <button
                   type="submit"
-                  disabled={submitting}
+                  disabled={submitting || uploading}
                   className="flex-1 py-3 bg-emerald-500 hover:bg-emerald-600 disabled:bg-emerald-450 text-white font-bold rounded-xl text-xs transition-colors flex items-center justify-center gap-1.5"
                 >
-                  {submitting ? 'Logging...' : 'Save Log Entry'}
+                  {submitting ? 'Logging...' : uploading ? 'Uploading image...' : 'Save Log Entry'}
                   <Check className="h-4 w-4" />
                 </button>
               </div>
             </form>
-
           </div>
         </div>
       )}

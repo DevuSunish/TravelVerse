@@ -10,8 +10,14 @@ import {
 } from '../controllers/tripController';
 import { 
   createGroup, getGroups, getGroupDetails, inviteMember, 
-  respondToInvitation, voteOnActivity, createGroupItinerary, createGroupActivity 
+  respondToInvitation, voteOnActivity, createGroupItinerary, createGroupActivity,
+  updateGroup, removeGroupMember, leaveGroup
 } from '../controllers/groupController';
+import {
+  createOrGetConversation, getConversations, getConversationMessages,
+  sendConversationMessage, getGroupMessages, sendGroupMessage, unsendMessage,
+  getUnreadChatCount
+} from '../controllers/chatController';
 import { addExpense, getExpenses, deleteExpense } from '../controllers/expenseController';
 import { 
   createRecommendation, getRecommendations, toggleLike, addComment, getComments, 
@@ -47,11 +53,24 @@ router.post('/trips/activity', authMiddleware, createActivity);
 router.post('/groups', authMiddleware, createGroup);
 router.get('/groups', authMiddleware, getGroups);
 router.get('/groups/:id', authMiddleware, getGroupDetails);
+router.put('/groups/:id', authMiddleware, updateGroup);
+router.post('/groups/:groupId/leave', authMiddleware, leaveGroup);
+router.delete('/groups/:groupId/members/:memberUserId', authMiddleware, removeGroupMember);
 router.post('/groups/invite', authMiddleware, inviteMember);
 router.post('/groups/respond', authMiddleware, respondToInvitation);
 router.post('/groups/itinerary', authMiddleware, createGroupItinerary);
 router.post('/groups/activity', authMiddleware, createGroupActivity);
 router.post('/groups/vote', authMiddleware, voteOnActivity);
+
+// --- CHAT / MESSAGING ROUTES ---
+router.post('/chat/conversations', authMiddleware, createOrGetConversation);
+router.get('/chat/conversations', authMiddleware, getConversations);
+router.get('/chat/unread-count', authMiddleware, getUnreadChatCount);
+router.get('/chat/conversations/:id/messages', authMiddleware, getConversationMessages);
+router.post('/chat/conversations/:id/messages', authMiddleware, sendConversationMessage);
+router.get('/groups/:id/messages', authMiddleware, getGroupMessages);
+router.post('/groups/:id/messages', authMiddleware, sendGroupMessage);
+router.post('/chat/messages/:id/unsend', authMiddleware, unsendMessage);
 
 // --- EXPENSE PLANNING ROUTES ---
 router.post('/expenses', authMiddleware, addExpense);

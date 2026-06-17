@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { useSearchParams, Link } from 'react-router-dom';
+import { useSearchParams, Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { apiRequest } from '../services/api';
 import { TripCard, Trip } from '../components/TripCard';
 import { RecommendationCard, Recommendation } from '../components/RecommendationCard';
 import { 
   Globe, Compass, Award, MapPin, UserPlus, UserMinus, 
-  Map, CheckSquare, Square, ChevronRight, X 
+  Map, CheckSquare, Square, ChevronRight, X, MessageSquare 
 } from 'lucide-react';
 
 interface ProfileStats {
@@ -46,6 +46,7 @@ export const ProfilePage: React.FC = () => {
   const { user: currentUser, updateUser } = useAuth();
   const [searchParams] = useSearchParams();
   const usernameParam = searchParams.get('username') || currentUser?.username;
+  const navigate = useNavigate();
 
   const [profile, setProfile] = useState<Profile | null>(null);
   const [trips, setTrips] = useState<ProfileTrip[]>([]);
@@ -192,6 +193,22 @@ export const ProfilePage: React.FC = () => {
     } catch (err) {
       console.error('Failed to remove cover image:', err);
       alert('Failed to remove cover image.');
+    }
+  };
+
+  const handleMessageClick = async () => {
+    if (!profile) return;
+    try {
+      const res = await apiRequest('/chat/conversations', {
+        method: 'POST',
+        body: { recipientId: profile.id }
+      });
+      if (res.conversation) {
+        navigate(`/groups?conversationId=${res.conversation.id}`);
+      }
+    } catch (err) {
+      console.error('Failed to create/get conversation:', err);
+      alert('Could not start a conversation. Please try again.');
     }
   };
 
@@ -424,26 +441,35 @@ export const ProfilePage: React.FC = () => {
 
               <div className="flex items-center justify-center gap-2">
                 {!isOwnProfile ? (
-                  <button
-                    onClick={handleFollowToggle}
-                    className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold shadow-xs transition-colors cursor-pointer ${
-                      isFollowing
-                        ? 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-rose-50 hover:text-rose-600'
-                        : 'bg-emerald-500 hover:bg-emerald-600 text-white'
-                    }`}
-                  >
-                    {isFollowing ? (
-                      <>
-                        <UserMinus className="h-4.5 w-4.5" />
-                        Unfollow
-                      </>
-                    ) : (
-                      <>
-                        <UserPlus className="h-4.5 w-4.5" />
-                        Follow Traveler
-                      </>
-                    )}
-                  </button>
+                  <>
+                    <button
+                      onClick={handleFollowToggle}
+                      className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold shadow-xs transition-colors cursor-pointer ${
+                        isFollowing
+                          ? 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-rose-50 hover:text-rose-600'
+                          : 'bg-emerald-500 hover:bg-emerald-600 text-white'
+                      }`}
+                    >
+                      {isFollowing ? (
+                        <>
+                          <UserMinus className="h-4.5 w-4.5" />
+                          Unfollow
+                        </>
+                      ) : (
+                        <>
+                          <UserPlus className="h-4.5 w-4.5" />
+                          Follow Traveler
+                        </>
+                      )}
+                    </button>
+                    <button
+                      onClick={handleMessageClick}
+                      className="flex items-center gap-2 px-5 py-2.5 bg-slate-800 hover:bg-slate-700 text-white dark:bg-slate-700 dark:hover:bg-slate-650 rounded-xl text-sm font-bold shadow-xs transition-colors cursor-pointer"
+                    >
+                      <MessageSquare className="h-4.5 w-4.5" />
+                      Message
+                    </button>
+                  </>
                 ) : (
                   <Link
                     to="/settings"
