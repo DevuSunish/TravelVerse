@@ -7,10 +7,13 @@ const express_1 = __importDefault(require("express"));
 const cors_1 = __importDefault(require("cors"));
 const dotenv_1 = __importDefault(require("dotenv"));
 const db_1 = require("./config/db");
+const path_1 = __importDefault(require("path"));
 const api_1 = __importDefault(require("./routes/api"));
 dotenv_1.default.config();
 const app = (0, express_1.default)();
 const PORT = process.env.PORT || 5000;
+// Serve uploaded profile pictures statically
+app.use('/uploads', express_1.default.static(path_1.default.resolve(__dirname, '../uploads')));
 // Enable CORS
 app.use((0, cors_1.default)());
 // Body parser
@@ -30,6 +33,14 @@ app.get('/', (req, res) => {
 });
 // API routes mapping
 app.use('/api', api_1.default);
+// Global error handler middleware
+app.use((err, req, res, next) => {
+    console.error('Unhandled server error:', err.message || err);
+    const status = err.status || err.statusCode || 500;
+    res.status(status).json({
+        message: err.message || 'An unexpected error occurred on the server'
+    });
+});
 // Database initialization & server start
 async function startServer() {
     try {

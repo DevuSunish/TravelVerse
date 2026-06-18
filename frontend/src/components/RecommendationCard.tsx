@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
 import { Star, MapPin, Heart, MessageCircle, Navigation, Clock, DollarSign, Send } from 'lucide-react';
 import { apiRequest } from '../services/api';
 
@@ -44,6 +44,19 @@ export const RecommendationCard: React.FC<RecommendationCardProps> = ({ rec, onL
   const [showComments, setShowComments] = useState(false);
   const [comments, setComments] = useState<Comment[]>([]);
   const [newComment, setNewComment] = useState('');
+  
+  const [searchParams] = useSearchParams();
+  const highlightId = searchParams.get('id');
+
+  useEffect(() => {
+    if (highlightId && Number(highlightId) === rec.id) {
+      // Delay slightly to ensure UI is ready
+      const timer = setTimeout(() => {
+        fetchComments();
+      }, 300);
+      return () => clearTimeout(timer);
+    }
+  }, [highlightId, rec.id]);
 
   // Sync state synchronously during render if props change
   if (rec.id !== prevRec.id || rec.is_liked !== prevRec.is_liked || rec.likes_count !== prevRec.likes_count || rec.comments_count !== prevRec.comments_count) {
@@ -122,7 +135,7 @@ export const RecommendationCard: React.FC<RecommendationCardProps> = ({ rec, onL
   };
 
   return (
-    <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800/80 rounded-2xl overflow-hidden shadow-xs hover-card flex flex-col">
+    <div id={`rec-${rec.id}`} className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800/80 rounded-2xl overflow-hidden shadow-xs hover-card flex flex-col">
       {/* Header (Author) */}
       <div className="flex items-center gap-3 p-4">
         <Link to={`/profile?username=${rec.username}`} className="shrink-0">

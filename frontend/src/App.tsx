@@ -17,6 +17,8 @@ import { FutureTrips } from './pages/FutureTrips';
 import { GroupPlanner } from './pages/GroupPlanner';
 import { AIAssistant } from './pages/AIAssistant';
 import { Settings } from './pages/Settings';
+import { CommunitiesPage } from './pages/CommunitiesPage';
+import { CommunityProfile } from './pages/CommunityProfile';
 
 // Protected Route Wrapper Component
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -106,6 +108,22 @@ export const App: React.FC = () => {
                   element={
                     <ProtectedRoute>
                       <GroupPlanner />
+                    </ProtectedRoute>
+                  } 
+                />
+                <Route 
+                  path="/communities" 
+                  element={
+                    <ProtectedRoute>
+                      <CommunitiesPage />
+                    </ProtectedRoute>
+                  } 
+                />
+                <Route 
+                  path="/communities/:id" 
+                  element={
+                    <ProtectedRoute>
+                      <CommunityProfile />
                     </ProtectedRoute>
                   } 
                 />

@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { apiRequest } from '../services/api';
 import { InteractiveMap } from '../components/InteractiveMap';
 import { RecommendationCard, Recommendation } from '../components/RecommendationCard';
 import { 
   Globe, Plane, Award, Calendar, Compass, 
-  MapPin, Heart, MessageSquare, Plus, CheckCircle2, ListTodo, X
+  MapPin, Heart, MessageSquare, Plus, CheckCircle2, ListTodo, X, Users
 } from 'lucide-react';
 
 interface ProfileStats {
@@ -69,11 +69,13 @@ interface FeedItem {
 
 export const Dashboard: React.FC = () => {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [feed, setFeed] = useState<FeedItem[]>([]);
   const [countries, setCountries] = useState<CountryFootprint[]>([]);
   const [upcomingTrip, setUpcomingTrip] = useState<UpcomingTrip | null>(null);
   const [daysRemaining, setDaysRemaining] = useState<number | null>(null);
+  const [communitiesList, setCommunitiesList] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Map country status editor modal
@@ -157,6 +159,10 @@ export const Dashboard: React.FC = () => {
           const days = Math.ceil(timeDiff / (1000 * 3600 * 24));
           setDaysRemaining(days >= 0 ? days : 0);
         }
+
+        // 5. Load Travel Communities
+        const commsData = await apiRequest('/communities');
+        setCommunitiesList(commsData.communities || []);
       } catch (err) {
         console.error('Failed to load dashboard:', err);
       } finally {
@@ -172,6 +178,38 @@ export const Dashboard: React.FC = () => {
   // Click on a country on the map
   const handleCountryMapClick = (countryName: string, countryCode: string, currentStatus?: 'visited' | 'planned' | 'wishlist') => {
     setSelectedCountry({ name: countryName, code: countryCode, currentStatus });
+  };
+
+  const handleJoinLeaveDashboard = async (communityId: number, currentStatus: string | null) => {
+    try {
+      if (currentStatus === 'accepted' || currentStatus === 'pending') {
+        await apiRequest(`/communities/${communityId}/leave`, { method: 'POST' });
+        setCommunitiesList(prev => prev.map(c => {
+          if (c.id === communityId) {
+            return {
+              ...c,
+              membership_status: null,
+              member_count: currentStatus === 'accepted' ? Math.max(0, c.member_count - 1) : c.member_count
+            };
+          }
+          return c;
+        }));
+      } else {
+        const res = await apiRequest(`/communities/${communityId}/join`, { method: 'POST' });
+        setCommunitiesList(prev => prev.map(c => {
+          if (c.id === communityId) {
+            return {
+              ...c,
+              membership_status: res.status,
+              member_count: res.status === 'accepted' ? c.member_count + 1 : c.member_count
+            };
+          }
+          return c;
+        }));
+      }
+    } catch (e) {
+      console.error('Failed to join/leave community:', e);
+    }
   };
 
   // Submit map country update
@@ -422,6 +460,92 @@ export const Dashboard: React.FC = () => {
           </div>
         </div>
 
+      </div>
+
+      {/* Travel Communities Section */}
+      <div className="space-y-4 pt-8 border-t border-slate-100 dark:border-slate-800/80 mt-8 w-full">
+        <div className="flex justify-between items-center">
+          <div>
+            <h3 className="text-xl font-bold text-slate-800 dark:text-slate-100 font-serif">Travel Communities</h3>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Connect with fellow travelers sharing common destinations and interests</p>
+          </div>
+          <Link to="/communities" className="text-sm text-emerald-600 dark:text-emerald-400 font-bold hover:underline">
+            Explore All
+          </Link>
+        </div>
+
+        {communitiesList.length === 0 ? (
+          <div className="bg-white dark:bg-slate-900 border border-slate-150 dark:border-slate-850 p-8 rounded-3xl text-center text-slate-400">
+            <Users className="h-10 w-10 mx-auto opacity-50 mb-3" />
+            <p className="text-sm font-semibold">No travel communities available.</p>
+          </div>
+        ) : (
+          <div className="flex gap-6 overflow-x-auto pb-6 pt-2 snap-x scroll-smooth no-scrollbar scrollbar-thin w-full">
+            {communitiesList.map((comm) => {
+              const isUserJoined = comm.membership_status === 'accepted';
+              const isUserPending = comm.membership_status === 'pending';
+              
+              return (
+                <div 
+                  key={comm.id} 
+                  className="w-[320px] sm:w-[380px] md:w-[420px] shrink-0 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800/80 rounded-2xl overflow-hidden shadow-xs hover-card snap-start flex flex-col justify-between transition-all duration-300"
+                >
+                  <div>
+                    {/* Cover Image */}
+                    <div 
+                      className="h-40 sm:h-44 w-full bg-cover bg-center relative cursor-pointer"
+                      style={{ backgroundImage: `url(${comm.cover_image})` }}
+                      onClick={() => navigate(`/communities/${comm.id}`)}
+                    >
+                      <div className="absolute top-3 right-3 bg-slate-950/70 text-white text-[10px] sm:text-xs font-bold px-2.5 py-1 rounded-full backdrop-blur-xs">
+                        {comm.category}
+                      </div>
+                    </div>
+
+                    {/* Card Info */}
+                    <div className="p-5 sm:p-6">
+                      <h4 
+                        className="font-bold text-base sm:text-lg text-slate-800 dark:text-slate-100 hover:text-emerald-500 dark:hover:text-emerald-400 cursor-pointer line-clamp-1"
+                        onClick={() => navigate(`/communities/${comm.id}`)}
+                      >
+                        {comm.name}
+                      </h4>
+                      <span className="text-xs text-slate-400 font-medium block mt-1">
+                        {comm.member_count} {comm.member_count === 1 ? 'member' : 'members'}
+                      </span>
+                      <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-3 line-clamp-3 min-h-[3rem] sm:min-h-[3.75rem]">
+                        {comm.description || 'No description provided.'}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Action Button */}
+                  <div className="p-5 sm:p-6 pt-0 border-t border-slate-50 dark:border-slate-800/40 mt-3 flex gap-2">
+                    <button
+                      onClick={() => handleJoinLeaveDashboard(comm.id, comm.membership_status)}
+                      disabled={isUserPending}
+                      className={`w-full py-2.5 px-4 rounded-xl font-bold text-xs sm:text-sm transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                        isUserJoined 
+                          ? 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-350'
+                          : isUserPending
+                          ? 'bg-amber-50 text-amber-600 border border-amber-200 dark:bg-amber-950/20 dark:text-amber-400 cursor-not-allowed'
+                          : 'bg-emerald-500 hover:bg-emerald-600 text-white shadow-xs'
+                      }`}
+                    >
+                      {isUserJoined ? (
+                        <>Leave</>
+                      ) : isUserPending ? (
+                        <>Pending Approval</>
+                      ) : (
+                        <>Join</>
+                      )}
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* Country marking status modal */}
