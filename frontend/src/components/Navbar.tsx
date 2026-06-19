@@ -6,7 +6,7 @@ import { useNotifications, ParsedNotification } from '../context/NotificationCon
 import { 
   Compass, Map, Sparkles, Award, 
   Sun, Moon, Menu, X, LogOut, User as UserIcon, Settings, Calendar,
-  Bell, Trash2, Check, Heart, MessageSquare
+  Bell, Trash2, Check, Heart, MessageSquare, Users
 } from 'lucide-react';
 import { apiRequest } from '../services/api';
 
@@ -46,7 +46,7 @@ export const Navbar: React.FC = () => {
     return () => clearInterval(interval);
   }, [user]);
 
-  const formatTimeAgo = (dateString: string) => {
+  const formatTimeAgo = (dateString?: string) => {
     if (!dateString) return 'Just now';
     
     let date = new Date(dateString);
@@ -121,16 +121,57 @@ export const Navbar: React.FC = () => {
       markAsRead(notif.id);
     }
     setNotifDropdownOpen(false);
-    if (notif.type === 'follow' && notif.sender_username) {
-      navigate(`/profile?username=${notif.sender_username}`);
-    } else if (notif.type === 'direct_message' && notif.conversation_id) {
-      navigate(`/groups?conversationId=${notif.conversation_id}`);
-    } else if (notif.type === 'group_message' && notif.group_id) {
-      navigate(`/groups?groupId=${notif.group_id}`);
-    } else if (notif.type === 'group_invite' && notif.group_id) {
-      navigate(`/groups?groupId=${notif.group_id}`);
-    } else if ((notif.type === 'group_accept' || notif.type === 'group_decline') && notif.group_id) {
-      navigate(`/groups?groupId=${notif.group_id}`);
+
+    const type = notif.notification_type || notif.type;
+    const targetId = notif.target_id;
+    const targetUserId = notif.target_user_id;
+    const targetPostId = notif.target_post_id;
+    const targetCommunityId = notif.target_community_id;
+    const targetChatId = notif.target_chat_id;
+
+    if (type === 'follow') {
+      const username = notif.sender_username || notif.username;
+      if (username) {
+        navigate(`/profile?username=${username}`);
+      }
+    } else if (type === 'comment' || type === 'like') {
+      const recId = targetPostId || notif.recommendation_id;
+      const tripId = notif.trip_id;
+      if (recId) {
+        navigate(`/recommendations?id=${recId}`);
+      } else if (tripId) {
+        navigate(`/trips/${tripId}`);
+      }
+    } else if (type === 'community' || type === 'community_invite') {
+      const communityId = targetCommunityId || notif.community_id || targetId;
+      if (communityId) {
+        navigate(`/communities/${communityId}`);
+      }
+    } else if (type === 'mention') {
+      const communityId = targetCommunityId || notif.community_id;
+      if (communityId) {
+        navigate(`/communities/${communityId}`);
+      }
+    } else if (type === 'group_invite' || type === 'group_accept' || type === 'group_decline' || type === 'collab') {
+      const groupId = targetId || notif.group_id;
+      if (groupId) {
+        navigate(`/groups?groupId=${groupId}`);
+      }
+    } else if (type === 'direct_message' || type === 'message') {
+      const convId = targetChatId || notif.conversation_id || targetId;
+      if (convId) {
+        navigate(`/groups?conversationId=${convId}`);
+      }
+    } else if (type === 'group_message') {
+      const groupId = targetChatId || notif.group_id || targetId;
+      if (groupId) {
+        navigate(`/groups?groupId=${groupId}`);
+      }
+    } else if (type === 'travel_log') {
+      const tripId = targetPostId || notif.trip_id || targetId;
+      if (tripId) {
+        navigate(`/trips/${tripId}`);
+      }
     }
   };
 
@@ -189,8 +230,16 @@ export const Navbar: React.FC = () => {
                     }`}
                   >
                     {/* Icon or Avatar */}
-                    <div className="shrink-0">
-                      {notif.sender_profile_picture ? (
+                    <div className="shrink-0" onClick={(e) => { if (notif.sender_username) e.stopPropagation(); }}>
+                      {notif.sender_profile_picture && notif.sender_username ? (
+                        <Link to={`/profile?username=${notif.sender_username}`}>
+                          <img
+                            src={notif.sender_profile_picture}
+                            alt={notif.sender_username}
+                            className="h-8 w-8 rounded-full object-cover border border-slate-150 dark:border-slate-700 bg-emerald-50/20 cursor-pointer"
+                          />
+                        </Link>
+                      ) : notif.sender_profile_picture ? (
                         <img
                           src={notif.sender_profile_picture}
                           alt={notif.sender_username || 'avatar'}
@@ -271,6 +320,7 @@ export const Navbar: React.FC = () => {
     { name: 'Dashboard', path: '/', icon: Compass },
     { name: 'Trips', path: '/trips', icon: Map },
     { name: 'Recommendations', path: '/recommendations', icon: Award },
+    { name: 'Communities', path: '/communities', icon: Users },
     { name: 'Planner', path: '/planner', icon: Calendar },
     { name: 'Chats', path: '/groups', icon: MessageSquare },
     { name: 'AI Assistant', path: '/ai-assistant', icon: Sparkles },

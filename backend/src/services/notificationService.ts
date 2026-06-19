@@ -1,11 +1,47 @@
 import { query } from '../config/db';
 
-export async function createNotification(userId: number, type: string, contentJson: object) {
+export async function createNotification(
+  userId: number, 
+  type: string, 
+  contentJson: any, 
+  metadata: {
+    notification_type?: string;
+    target_id?: number;
+    target_user_id?: number;
+    target_post_id?: number;
+    target_community_id?: number;
+    target_chat_id?: number;
+  } = {}
+) {
   try {
     const content = JSON.stringify(contentJson);
+    const data = typeof contentJson === 'object' && contentJson !== null ? contentJson : {};
+
+    // Automatic fallback extraction from contentJson
+    const mType = metadata.notification_type || type;
+    const tId = metadata.target_id || data.target_id || data.post_id || data.recommendation_id || data.trip_id || data.conversation_id || data.group_id || data.community_id || data.source_id || null;
+    const tUserId = metadata.target_user_id || data.target_user_id || data.sender_id || null;
+    const tPostId = metadata.target_post_id || data.target_post_id || data.post_id || data.recommendation_id || data.trip_id || data.source_id || null;
+    const tCommId = metadata.target_community_id || data.target_community_id || data.community_id || null;
+    const tChatId = metadata.target_chat_id || data.target_chat_id || data.conversation_id || data.group_id || null;
+
     await query(
-      'INSERT INTO notifications (user_id, type, content) VALUES ($1, $2, $3)',
-      [userId, type, content]
+      `INSERT INTO notifications (
+        user_id, type, content, 
+        notification_type, target_id, target_user_id, 
+        target_post_id, target_community_id, target_chat_id
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+      [
+        userId, 
+        type, 
+        content,
+        mType,
+        tId,
+        tUserId,
+        tPostId,
+        tCommId,
+        tChatId
+      ]
     );
   } catch (err: any) {
     console.error('Error creating notification:', err.message);

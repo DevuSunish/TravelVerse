@@ -135,7 +135,7 @@ export async function toggleLike(req: AuthRequest, res: Response) {
         await query('INSERT INTO likes (user_id, recommendation_id) VALUES ($1, $2)', [userId, recommendation_id]);
 
         // Notify owner
-        const rec = await query('SELECT user_id, title FROM recommendations WHERE id = $1', [recommendation_id]);
+        const rec = await query('SELECT user_id, place_name AS title FROM recommendations WHERE id = $1', [recommendation_id]);
         if (rec.length > 0 && rec[0].user_id !== userId) {
           const sender = await query('SELECT username, COALESCE(profile_picture, avatar_url, \'https://api.dicebear.com/7.x/adventurer/svg?seed=\' || username) AS profile_picture FROM users WHERE id = $1', [userId]);
           const senderUsername = sender[0]?.username || req.user?.username;
@@ -203,7 +203,7 @@ export async function addComment(req: AuthRequest, res: Response) {
         });
       }
     } else if (recommendation_id) {
-      const rec = await query('SELECT user_id, title FROM recommendations WHERE id = $1', [recommendation_id]);
+      const rec = await query('SELECT user_id, place_name AS title FROM recommendations WHERE id = $1', [recommendation_id]);
       if (rec.length > 0 && rec[0].user_id !== userId) {
         await createNotification(rec[0].user_id, 'comment', {
           message: `${senderUsername} commented on your recommendation "${rec[0].title}": "${content.substring(0, 30)}${content.length > 30 ? '...' : ''}"`,

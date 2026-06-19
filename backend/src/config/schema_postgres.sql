@@ -1,6 +1,11 @@
 -- Database schema for PostgreSQL
 
 -- Drop tables if they exist (for migration purposes)
+DROP TABLE IF EXISTS community_likes CASCADE;
+DROP TABLE IF EXISTS community_comments CASCADE;
+DROP TABLE IF EXISTS community_posts CASCADE;
+DROP TABLE IF EXISTS community_members CASCADE;
+DROP TABLE IF EXISTS communities CASCADE;
 DROP TABLE IF EXISTS notifications CASCADE;
 DROP TABLE IF EXISTS expenses CASCADE;
 DROP TABLE IF EXISTS itineraries CASCADE;
@@ -197,6 +202,12 @@ CREATE TABLE notifications (
     type VARCHAR(50) NOT NULL, -- 'follow', 'like', 'comment', 'group_invite', 'expense'
     content TEXT NOT NULL,
     is_read BOOLEAN DEFAULT FALSE,
+    notification_type VARCHAR(50),
+    target_id INT,
+    target_user_id INT,
+    target_post_id INT,
+    target_community_id INT,
+    target_chat_id INT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -276,3 +287,96 @@ CREATE TABLE messages (
     is_read BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+-- Communities Table
+CREATE TABLE communities (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(150) UNIQUE NOT NULL,
+    cover_image VARCHAR(255),
+    description TEXT,
+    category VARCHAR(100) NOT NULL,
+    destination VARCHAR(150),
+    rules TEXT,
+    creator_id INT REFERENCES users(id) ON DELETE SET NULL,
+    requires_approval BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Community Members Table
+CREATE TABLE community_members (
+    id SERIAL PRIMARY KEY,
+    community_id INT REFERENCES communities(id) ON DELETE CASCADE,
+    user_id INT REFERENCES users(id) ON DELETE CASCADE,
+    role VARCHAR(50) DEFAULT 'member', -- 'admin', 'member'
+    status VARCHAR(50) DEFAULT 'accepted', -- 'pending', 'accepted'
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(community_id, user_id)
+);
+
+-- Community Posts Table
+CREATE TABLE community_posts (
+    id SERIAL PRIMARY KEY,
+    community_id INT REFERENCES communities(id) ON DELETE CASCADE,
+    user_id INT REFERENCES users(id) ON DELETE CASCADE,
+    title VARCHAR(150),
+    content TEXT NOT NULL,
+    photo_url VARCHAR(255),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Community Comments Table
+CREATE TABLE community_comments (
+    id SERIAL PRIMARY KEY,
+    post_id INT REFERENCES community_posts(id) ON DELETE CASCADE,
+    user_id INT REFERENCES users(id) ON DELETE CASCADE,
+    content TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Community Likes Table
+CREATE TABLE community_likes (
+    id SERIAL PRIMARY KEY,
+    post_id INT REFERENCES community_posts(id) ON DELETE CASCADE,
+    user_id INT REFERENCES users(id) ON DELETE CASCADE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(post_id, user_id)
+);
+
+-- Seed Communities
+INSERT INTO communities (name, cover_image, description, category, destination, rules, creator_id, requires_approval) VALUES
+('Annapurna Base Camp Trek', 'https://images.unsplash.com/photo-1544735716-392fe2489ffa?auto=format&fit=crop&q=80&w=600', 'Connect with fellow trekkers planning or sharing their experiences about the legendary Annapurna Base Camp route in Nepal.', 'Trekking', 'Nepal', '1. Share trekking tips and advice.\n2. Respect local culture and environment.\n3. No spam.', 1, FALSE),
+('Kerala Backpackers', 'https://images.unsplash.com/photo-1602216056096-3b40cc0c9944?auto=format&fit=crop&q=80&w=600', 'Explore the backwaters, beaches, and hill stations of God''s Own Country on a budget.', 'Backpacking', 'India', '1. Budget travel tips only.\n2. Be helpful and kind.', 1, FALSE),
+('Solo Travelers India', 'https://images.unsplash.com/photo-1488646953014-85cb44e25828?auto=format&fit=crop&q=80&w=600', 'A community for solo wanderers exploring the diverse landscapes of India.', 'Solo Travel', 'India', '1. Share safety advice.\n2. Solo meetups allowed.', 1, FALSE),
+('Coorg Explorers', 'https://images.unsplash.com/photo-1590050752117-238cb0612b1b?auto=format&fit=crop&q=80&w=600', 'Discover the coffee plantations, waterfalls, and misty hills of Coorg.', 'Adventure', 'India', '1. Keep Coorg clean.', 1, FALSE),
+('Weekend Trekkers Bangalore', 'https://images.unsplash.com/photo-1501555088652-021faa106b9b?auto=format&fit=crop&q=80&w=600', 'Join day hikes, night treks, and outdoor excursions around Bangalore.', 'Trekking', 'India', '1. Organize group treks responsibly.', 1, FALSE),
+('Ladakh Riders', 'https://images.unsplash.com/photo-1605649487212-47bdab064df7?auto=format&fit=crop&q=80&w=600', 'Share route maps, road conditions, and stories of biking through the cold desert of Ladakh.', 'Road Trips', 'India', '1. Prioritize rider safety.', 1, FALSE),
+('Goa Travelers', 'https://images.unsplash.com/photo-1506461883276-594a12b11db3?auto=format&fit=crop&q=80&w=600', 'Beaches, parties, architecture, and food in the vibrant state of Goa.', 'Backpacking', 'India', '1. No commercial promotions.', 1, FALSE);
+
+-- Seed Community Members
+INSERT INTO community_members (community_id, user_id, role, status) VALUES
+(1, 1, 'admin', 'accepted'),
+(1, 2, 'member', 'accepted'),
+(1, 3, 'member', 'accepted'),
+(2, 1, 'admin', 'accepted'),
+(2, 3, 'member', 'accepted'),
+(3, 1, 'admin', 'accepted'),
+(3, 2, 'member', 'accepted'),
+(4, 1, 'admin', 'accepted'),
+(5, 1, 'admin', 'accepted'),
+(6, 1, 'admin', 'accepted'),
+(7, 1, 'admin', 'accepted');
+
+-- Seed Community Posts
+INSERT INTO community_posts (community_id, user_id, title, content, photo_url) VALUES
+(1, 2, 'Best time to trek Annapurna Base Camp?', 'I am planning a trip next year and want to know the best month for dry weather and clear mountain views. Anyone been there recently?', NULL);
+
+-- Seed Community Comments
+INSERT INTO community_comments (post_id, user_id, content) VALUES
+(1, 1, 'September to November is fantastic! Crystal clear skies and moderate temperatures.'),
+(1, 3, 'Agreed, though spring (March-May) is also beautiful with all the rhododendrons in bloom!');
+
+-- Seed Community Likes
+INSERT INTO community_likes (post_id, user_id) VALUES
+(1, 1),
+(1, 3);

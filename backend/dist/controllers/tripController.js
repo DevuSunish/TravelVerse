@@ -27,12 +27,28 @@ function getCountryCode(countryName) {
 }
 async function getTrips(req, res) {
     try {
-        const userId = req.user?.id;
+        const loggedInUserId = req.user?.id;
         const statusParam = req.query.status; // 'past', 'planned', 'wishlist'
+        const usernameParam = req.query.username;
+        const userIdParam = req.query.userId;
+        let targetUserId = loggedInUserId;
+        if (usernameParam) {
+            const userRes = await (0, db_1.query)('SELECT id FROM users WHERE username = $1', [usernameParam]);
+            if (userRes.length > 0) {
+                targetUserId = userRes[0].id;
+            }
+            else {
+                return res.json({ trips: [] });
+            }
+        }
+        else if (userIdParam) {
+            targetUserId = parseInt(userIdParam);
+        }
         let tripsQuery = 'SELECT * FROM trips WHERE user_id = $1';
-        const params = [userId];
+        const params = [targetUserId];
+        let paramIndex = 2;
         if (statusParam) {
-            tripsQuery += ' AND status = $2';
+            tripsQuery += ` AND status = $${paramIndex++}`;
             params.push(statusParam);
         }
         tripsQuery += ' ORDER BY start_date DESC, created_at DESC';

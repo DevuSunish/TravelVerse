@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { apiRequest, API_BASE_URL } from '../services/api';
 import { RecommendationCard, Recommendation } from '../components/RecommendationCard';
 import { 
@@ -8,6 +9,9 @@ import {
 export const RecommendationsFeed: React.FC = () => {
   const [recommendations, setRecommendations] = useState<Recommendation[]>([]);
   const [loading, setLoading] = useState(true);
+  
+  const [searchParams] = useSearchParams();
+  const highlightId = searchParams.get('id');
   
   // Search & Filter states
   const [search, setSearch] = useState('');
@@ -147,6 +151,22 @@ export const RecommendationsFeed: React.FC = () => {
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [search, selectedCategory]);
+
+  useEffect(() => {
+    if (!loading && highlightId && recommendations.length > 0) {
+      const timer = setTimeout(() => {
+        const element = document.getElementById(`rec-${highlightId}`);
+        if (element) {
+          element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          element.classList.add('ring-2', 'ring-emerald-500', 'ring-offset-4');
+          setTimeout(() => {
+            element.classList.remove('ring-2', 'ring-emerald-500', 'ring-offset-4');
+          }, 3000);
+        }
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [loading, highlightId, recommendations]);
 
   const handleCreateRecommendation = async (e: React.FormEvent) => {
     e.preventDefault();

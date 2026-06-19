@@ -32,6 +32,8 @@ interface GroupMember {
   status: 'pending' | 'accepted' | 'declined';
   profile_picture?: string;
   role?: string;
+  is_online?: boolean;
+  last_seen?: string;
 }
 
 interface GroupItinerary {
@@ -81,6 +83,8 @@ interface DMConversation {
     id: number;
     username: string;
     profile_picture: string;
+    is_online?: boolean;
+    last_seen?: string;
   };
   lastMessage?: {
     message_text: string;
@@ -380,7 +384,7 @@ export const GroupPlanner: React.FC = () => {
 
   const [leavingGroup, setLeavingGroup] = useState(false);
 
-  const formatLastSeen = (dateString: string) => {
+  const formatLastSeen = (dateString?: string) => {
     if (!dateString) return 'a long time ago';
     
     let date = new Date(dateString);
@@ -1156,24 +1160,38 @@ export const GroupPlanner: React.FC = () => {
                 </button>
 
                 {/* Avatar / Icon */}
-                <img
-                  src={
-                    selectedGroupId
-                      ? (selectedGroup?.cover_image || 'https://images.unsplash.com/photo-1488646953014-85cb44e25828?auto=format&fit=crop&q=80&w=100')
-                      : (() => {
-                          const r = dms.find(d => d.id === selectedConversationId)?.recipient;
-                          return r?.profile_picture || `https://api.dicebear.com/7.x/adventurer/svg?seed=${r?.username || 'avatar'}`;
-                        })()
-                  }
-                  alt="Avatar"
-                  className={`h-10 w-10 object-cover ${selectedGroupId ? 'rounded-xl' : 'rounded-full'} border border-slate-150 dark:border-slate-800 shrink-0`}
-                />
+                {!selectedGroupId ? (
+                  <Link to={`/profile?username=${dms.find(d => d.id === selectedConversationId)?.recipient?.username}`}>
+                    <img
+                      src={(() => {
+                        const r = dms.find(d => d.id === selectedConversationId)?.recipient;
+                        return r?.profile_picture || `https://api.dicebear.com/7.x/adventurer/svg?seed=${r?.username || 'avatar'}`;
+                      })()}
+                      alt="Avatar"
+                      className="h-10 w-10 object-cover rounded-full border border-slate-150 dark:border-slate-800 shrink-0 cursor-pointer"
+                    />
+                  </Link>
+                ) : (
+                  <img
+                    src={selectedGroup?.cover_image || 'https://images.unsplash.com/photo-1488646953014-85cb44e25828?auto=format&fit=crop&q=80&w=100'}
+                    alt="Avatar"
+                    className="h-10 w-10 object-cover rounded-xl border border-slate-150 dark:border-slate-800 shrink-0"
+                  />
+                )}
 
                 {/* Details */}
                 <div className="min-w-0">
-                  <h3 className="font-bold text-slate-800 dark:text-slate-200 text-xs truncate">
-                    {selectedGroupId ? selectedGroup?.name : (dms.find(d => d.id === selectedConversationId)?.recipient?.username || 'Loading chat...')}
-                  </h3>
+                  {!selectedGroupId ? (
+                    <Link to={`/profile?username=${dms.find(d => d.id === selectedConversationId)?.recipient?.username}`} className="hover:underline">
+                      <h3 className="font-bold text-slate-800 dark:text-slate-200 text-xs truncate cursor-pointer">
+                        {dms.find(d => d.id === selectedConversationId)?.recipient?.username || 'Loading chat...'}
+                      </h3>
+                    </Link>
+                  ) : (
+                    <h3 className="font-bold text-slate-800 dark:text-slate-200 text-xs truncate">
+                      {selectedGroup?.name}
+                    </h3>
+                  )}
                   <div className="flex items-center gap-1.5 text-[9px] text-slate-400 mt-0.5">
                     {selectedGroupId ? (
                       <span>{groupDetails?.members ? groupDetails.members.filter(m => m.status === 'accepted' && m.is_online).length : 0} of {groupDetails?.members ? groupDetails.members.filter(m => m.status === 'accepted').length : 0} online</span>
@@ -1240,17 +1258,21 @@ export const GroupPlanner: React.FC = () => {
                   return (
                     <div key={msg.id} className={`flex items-start gap-2.5 ${isMe ? 'flex-row-reverse' : ''}`}>
                       {/* Avatar */}
-                      <img
-                        src={senderPic}
-                        alt={senderName}
-                        className="h-8 w-8 rounded-full object-cover bg-emerald-50/10 border border-slate-100 dark:border-slate-850 shrink-0 mt-0.5"
-                      />
+                      <Link to={`/profile?username=${msg.sender_username || user?.username}`}>
+                        <img
+                          src={senderPic}
+                          alt={senderName}
+                          className="h-8 w-8 rounded-full object-cover bg-emerald-50/10 border border-slate-100 dark:border-slate-850 shrink-0 mt-0.5 cursor-pointer"
+                        />
+                      </Link>
 
                       {/* Content bubble */}
                       <div className={`max-w-[70%] space-y-1 ${isMe ? 'items-end' : 'items-start'}`}>
                         {/* Username (Groups only) */}
                         {selectedGroupId && !isMe && (
-                          <span className="text-[10px] font-bold text-slate-450 block ml-1">{senderName}</span>
+                          <Link to={`/profile?username=${msg.sender_username}`} className="hover:underline">
+                            <span className="text-[10px] font-bold text-slate-450 block ml-1 cursor-pointer">{senderName}</span>
+                          </Link>
                         )}
                         
                         <div className="flex items-center gap-2 group">
@@ -1857,26 +1879,26 @@ export const GroupPlanner: React.FC = () => {
 
                         return (
                           <div key={member.id} className="flex justify-between items-center p-3 rounded-xl bg-slate-50 dark:bg-slate-850/30 border border-slate-100/40">
-                            <div className="flex items-center gap-3">
+                            <Link to={`/profile?username=${member.username}`} className="flex items-center gap-3 flex-1 min-w-0 hover:underline">
                               <img
                                 src={member.profile_picture || `https://api.dicebear.com/7.x/adventurer/svg?seed=${member.username}`}
                                 alt={member.username}
-                                className={`h-8 w-8 rounded-full object-cover border border-slate-100 dark:border-slate-800 ${member.status === 'pending' ? 'opacity-40 grayscale' : ''}`}
+                                className={`h-8 w-8 rounded-full object-cover border border-slate-100 dark:border-slate-800 ${member.status === 'pending' ? 'opacity-40 grayscale' : ''} cursor-pointer`}
                               />
-                              <div>
+                              <div className="min-w-0">
                                 <div className="flex items-center gap-1.5">
-                                  <span className="font-bold text-slate-800 dark:text-slate-200 text-xs">{member.username}</span>
+                                  <span className="font-bold text-slate-800 dark:text-slate-200 text-xs cursor-pointer truncate">{member.username}</span>
                                   {member.status === 'accepted' && member.is_online && (
                                     <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" title="Online" />
                                   )}
                                 </div>
-                                <span className="text-[9px] text-slate-400 capitalize">
+                                <span className="text-[9px] text-slate-400 capitalize block truncate">
                                   {member.status === 'accepted' 
                                     ? `${member.role}${!member.is_online && member.last_seen ? ` • Last seen ${formatLastSeen(member.last_seen)}` : ''}` 
                                     : 'Invitation Pending'}
                                 </span>
                               </div>
-                            </div>
+                            </Link>
 
                             <div className="flex items-center gap-2">
                               {isAdmin ? (

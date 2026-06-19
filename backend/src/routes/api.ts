@@ -28,6 +28,22 @@ import {
   getFollowersList, getFollowingList
 } from '../controllers/socialController';
 import { generateItinerary, askAssistant } from '../controllers/aiController';
+import {
+  createCommunity,
+  getCommunities,
+  getCommunityDetails,
+  joinCommunity,
+  leaveCommunity,
+  getCommunityRequests,
+  handleJoinRequest,
+  getCommunityPosts,
+  createCommunityPost,
+  toggleCommunityPostLike,
+  addCommunityPostComment,
+  getCommunityPostComments,
+  getCommunityMembers,
+  getCommunityPhotos
+} from '../controllers/communityController';
 
 const router = Router();
 
@@ -100,6 +116,22 @@ router.put('/social/notifications/read-all', authMiddleware, markAllNotification
 router.put('/social/notifications/:id', authMiddleware, markNotificationRead);
 router.delete('/social/notifications/:id', authMiddleware, deleteNotification);
 router.delete('/social/notifications', authMiddleware, deleteAllNotifications);
+
+// --- TRAVEL COMMUNITIES ROUTES ---
+router.post('/communities', authMiddleware, upload.single('cover'), createCommunity);
+router.get('/communities', authMiddleware, getCommunities);
+router.get('/communities/:id', authMiddleware, getCommunityDetails);
+router.post('/communities/:id/join', authMiddleware, joinCommunity);
+router.post('/communities/:id/leave', authMiddleware, leaveCommunity);
+router.get('/communities/:id/requests', authMiddleware, getCommunityRequests);
+router.post('/communities/:id/requests', authMiddleware, handleJoinRequest);
+router.get('/communities/:id/posts', authMiddleware, getCommunityPosts);
+router.post('/communities/:id/posts', authMiddleware, upload.single('photo'), createCommunityPost);
+router.post('/communities/posts/:postId/like', authMiddleware, toggleCommunityPostLike);
+router.post('/communities/posts/:postId/comments', authMiddleware, addCommunityPostComment);
+router.get('/communities/posts/:postId/comments', authMiddleware, getCommunityPostComments);
+router.get('/communities/:id/members', authMiddleware, getCommunityMembers);
+router.get('/communities/:id/photos', authMiddleware, getCommunityPhotos);
 
 // --- AI FEATURES ROUTES ---
 router.post('/ai/itinerary', authMiddleware, generateItinerary);
