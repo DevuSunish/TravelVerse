@@ -1,7 +1,6 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
-import { ThemeProvider } from './context/ThemeContext';
 import { NotificationProvider } from './context/NotificationContext';
 import { Navbar } from './components/Navbar';
 
@@ -26,7 +25,7 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
 
   if (loading) {
     return (
-      <div className="flex justify-center items-center h-screen bg-slate-50 dark:bg-slate-950">
+      <div className="flex justify-center items-center h-screen bg-slate-950">
         <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-emerald-500" />
       </div>
     );
@@ -41,12 +40,11 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
 
 export const App: React.FC = () => {
   return (
-    <ThemeProvider>
-      <AuthProvider>
-        <NotificationProvider>
-          <BrowserRouter>
-          <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 transition-colors duration-250 flex flex-col">
-            <Navbar />
+    <AuthProvider>
+      <NotificationProvider>
+        <BrowserRouter>
+        <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
+          <Navbar />
             
             <main className="flex-1">
               <Routes>
@@ -150,9 +148,8 @@ export const App: React.FC = () => {
             </main>
           </div>
         </BrowserRouter>
-        </NotificationProvider>
-      </AuthProvider>
-    </ThemeProvider>
+      </NotificationProvider>
+    </AuthProvider>
   );
 };
 export default App;

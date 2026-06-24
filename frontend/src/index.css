@@ -40,7 +40,7 @@
   to { opacity: 1; transform: translateY(0); }
 }
 
-/* Custom Scrollbars */
+/* Custom Scrollbars — dark mode is always active */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
@@ -51,7 +51,7 @@
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
+  background: #475569;
   border-radius: 9999px;
 }
 
@@ -85,12 +85,12 @@ button, input, select, textarea {
   z-index: 10;
 }
 
-/* Glassmorphism utility classes */
+/* Glassmorphism utility classes — dark mode always active */
 .glass {
-  background: rgba(255, 255, 255, 0.7);
+  background: rgba(15, 23, 42, 0.65);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.05);
 }
 
 .dark .glass {
@@ -107,7 +107,7 @@ button, input, select, textarea {
 
 .hover-card:hover {
   transform: translateY(-4px);
-  box-shadow: 0 12px 30px -10px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 12px 30px -10px rgba(0, 0, 0, 0.5);
 }
 
 .dark .hover-card:hover {

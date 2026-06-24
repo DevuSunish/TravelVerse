@@ -1,18 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { useTheme } from '../context/ThemeContext';
 import { useNotifications, ParsedNotification } from '../context/NotificationContext';
 import { 
   Compass, Map, Sparkles, Award, 
-  Sun, Moon, Menu, X, LogOut, User as UserIcon, Settings, Calendar,
+  Menu, X, LogOut, User as UserIcon, Settings, Calendar,
   Bell, Trash2, Check, Heart, MessageSquare, Users
 } from 'lucide-react';
 import { apiRequest } from '../services/api';
 
 export const Navbar: React.FC = () => {
   const { user, logout } = useAuth();
-  const { theme, toggleTheme } = useTheme();
   const { 
     notifications, 
     unreadCount, 
@@ -370,15 +368,8 @@ export const Navbar: React.FC = () => {
             })}
           </div>
 
-          {/* Right actions: Theme + User Dropdown */}
+          {/* Right actions: User Dropdown */}
           <div className="hidden md:flex items-center gap-4">
-            <button
-              onClick={toggleTheme}
-              className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400 transition-colors duration-200"
-              aria-label="Toggle theme"
-            >
-              {theme === 'dark' ? <Sun className="h-5 w-5 text-amber-400" /> : <Moon className="h-5 w-5 text-slate-700" />}
-            </button>
 
             {/* Notification Bell */}
             <div className="relative">
@@ -445,12 +436,6 @@ export const Navbar: React.FC = () => {
 
           {/* Mobile menu button */}
           <div className="flex items-center md:hidden gap-2">
-            <button
-              onClick={toggleTheme}
-              className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400"
-            >
-              {theme === 'dark' ? <Sun className="h-5 w-5 text-amber-400" /> : <Moon className="h-5 w-5 text-slate-700" />}
-            </button>
 
             {/* Mobile Notification Bell */}
             <div className="relative">
