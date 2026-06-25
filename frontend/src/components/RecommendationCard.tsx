@@ -44,6 +44,8 @@ export const RecommendationCard: React.FC<RecommendationCardProps> = ({ rec, onL
   const [showComments, setShowComments] = useState(false);
   const [comments, setComments] = useState<Comment[]>([]);
   const [newComment, setNewComment] = useState('');
+  const [commentsLoading, setCommentsLoading] = useState(false);
+  const [commentsError, setCommentsError] = useState<string | null>(null);
   
   const [searchParams] = useSearchParams();
   const highlightId = searchParams.get('id');
@@ -89,16 +91,27 @@ export const RecommendationCard: React.FC<RecommendationCardProps> = ({ rec, onL
   };
 
   const fetchComments = async () => {
-    if (comments.length > 0 && !showComments) {
+    // Toggle: close tray if already open
+    if (showComments) {
+      setShowComments(false);
+      return;
+    }
+    // Use cached comments if already fetched
+    if (comments.length > 0) {
       setShowComments(true);
       return;
     }
+    setCommentsLoading(true);
+    setCommentsError(null);
     try {
       const data = await apiRequest(`/social/comment?recommendation_id=${rec.id}`);
       setComments(data.comments || []);
       setShowComments(true);
     } catch (err) {
+      setCommentsError('Failed to load comments. Please try again.');
       console.error('Failed to load comments:', err);
+    } finally {
+      setCommentsLoading(false);
     }
   };
 
@@ -254,30 +267,45 @@ export const RecommendationCard: React.FC<RecommendationCardProps> = ({ rec, onL
             <button onClick={() => setShowComments(false)} className="text-slate-400 hover:text-slate-600 text-xs">Close</button>
           </div>
 
+          {/* Loading state */}
+          {commentsLoading && (
+            <div className="flex items-center justify-center gap-2 py-4">
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-emerald-500" />
+              <span className="text-xs text-slate-400">Loading comments...</span>
+            </div>
+          )}
+
+          {/* Error state */}
+          {commentsError && !commentsLoading && (
+            <p className="text-xs text-rose-500 text-center py-2 font-medium">{commentsError}</p>
+          )}
+
           {/* Comments List */}
-          <div className="space-y-3 max-h-[200px] overflow-y-auto pr-1 mb-3">
-            {comments.length === 0 ? (
-              <p className="text-xs text-slate-400 text-center py-4">No comments yet. Be the first!</p>
-            ) : (
-              comments.map((comm) => (
-                <div key={comm.id} className="flex items-start gap-2 text-xs">
-                  <Link to={`/profile?username=${comm.username}`} className="shrink-0">
-                    <img
-                      src={comm.profile_picture || 'https://api.dicebear.com/7.x/adventurer/svg?seed=avatar'}
-                      alt={comm.username}
-                      className="h-6 w-6 rounded-full object-cover bg-emerald-50 shrink-0 cursor-pointer"
-                    />
-                  </Link>
-                  <div className="bg-slate-100 dark:bg-slate-800 p-2 rounded-xl flex-1">
-                    <Link to={`/profile?username=${comm.username}`} className="hover:underline">
-                      <span className="font-bold text-slate-700 dark:text-slate-200 block mb-0.5 cursor-pointer">{comm.username}</span>
+          {!commentsLoading && (
+            <div className="space-y-3 max-h-[200px] overflow-y-auto pr-1 mb-3">
+              {comments.length === 0 && !commentsError ? (
+                <p className="text-xs text-slate-400 text-center py-4">No comments yet. Be the first!</p>
+              ) : (
+                comments.map((comm) => (
+                  <div key={comm.id} className="flex items-start gap-2 text-xs">
+                    <Link to={`/profile?username=${comm.username}`} className="shrink-0">
+                      <img
+                        src={comm.profile_picture || 'https://api.dicebear.com/7.x/adventurer/svg?seed=avatar'}
+                        alt={comm.username}
+                        className="h-6 w-6 rounded-full object-cover bg-emerald-50 shrink-0 cursor-pointer"
+                      />
                     </Link>
-                    <p className="text-slate-600 dark:text-slate-300 leading-normal">{comm.content}</p>
+                    <div className="bg-slate-100 dark:bg-slate-800 p-2 rounded-xl flex-1">
+                      <Link to={`/profile?username=${comm.username}`} className="hover:underline">
+                        <span className="font-bold text-slate-700 dark:text-slate-200 block mb-0.5 cursor-pointer">{comm.username}</span>
+                      </Link>
+                      <p className="text-slate-600 dark:text-slate-300 leading-normal">{comm.content}</p>
+                    </div>
                   </div>
-                </div>
-              ))
-            )}
-          </div>
+                ))
+              )}
+            </div>
+          )}
 
           {/* Comment input form */}
           <form onSubmit={handlePostComment} className="flex gap-2">

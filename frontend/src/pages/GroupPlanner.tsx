@@ -3,7 +3,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { apiRequest } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { 
-  Users, Check, X, Vote, Trash2, Plus, MessageSquare, Send, Search, Settings as SettingsIcon,
+  Users, Check, X, Vote, Trash2, Plus, MessageSquare, Send, Search,
   ChevronLeft, Image, DollarSign, Calendar, Shield, UserMinus, ShieldCheck, CheckSquare, ListTodo,
   Compass
 } from 'lucide-react';
@@ -171,12 +171,6 @@ export const GroupPlanner: React.FC = () => {
   const [activityCost, setActivityCost] = useState('');
   const [addingActivity, setAddingActivity] = useState(false);
 
-  // Group Info modification in settings
-  const [editGroupName, setEditGroupName] = useState('');
-  const [editGroupDesc, setEditGroupDesc] = useState('');
-  const [editGroupCoverFile, setEditGroupCoverFile] = useState<File | null>(null);
-  const [editGroupCoverPreview, setEditGroupCoverPreview] = useState<string | null>(null);
-  const [savingGroupInfo, setSavingGroupInfo] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -299,9 +293,6 @@ export const GroupPlanner: React.FC = () => {
       const match = groups.find(g => g.id === selectedGroupId);
       if (match) {
         setSelectedGroup(match);
-        setEditGroupName(match.name);
-        setEditGroupDesc(match.description || '');
-        setEditGroupCoverPreview(match.cover_image || null);
       }
     }
   }, [selectedGroupId, groups, selectedGroup]);
@@ -333,9 +324,6 @@ export const GroupPlanner: React.FC = () => {
           
           if (details.group) {
             setSelectedGroup(details.group);
-            setEditGroupName(details.group.name);
-            setEditGroupDesc(details.group.description || '');
-            setEditGroupCoverPreview(details.group.cover_image || null);
           }
 
           // Load messages
@@ -756,63 +744,6 @@ export const GroupPlanner: React.FC = () => {
     }
   };
 
-  // Group settings: Edit Cover selector
-  const handleEditGroupCoverSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setEditGroupCoverFile(file);
-    setEditGroupCoverPreview(URL.createObjectURL(file));
-  };
-
-  // Group settings: Save Group Information Info tab
-  const handleSaveGroupInfo = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedGroupId || !editGroupName.trim() || savingGroupInfo) return;
-    setSavingGroupInfo(true);
-
-    try {
-      let coverUrl = editGroupCoverPreview;
-
-      // Handle direct file upload if updated
-      if (editGroupCoverFile) {
-        const formData = new FormData();
-        formData.append('profilePicture', editGroupCoverFile);
-        const token = localStorage.getItem('token');
-        const uploadRes = await fetch('http://localhost:5000/api/auth/profile/upload', {
-          method: 'POST',
-          headers: { 'Authorization': `Bearer ${token}` },
-          body: formData
-        });
-        if (uploadRes.ok) {
-          const uploadData = await uploadRes.json();
-          coverUrl = uploadData.url;
-        }
-      }
-
-      const res = await apiRequest(`/groups/${selectedGroupId}`, {
-        method: 'PUT',
-        body: {
-          name: editGroupName,
-          description: editGroupDesc,
-          cover_image: coverUrl
-        }
-      });
-
-      if (res.group) {
-        setEditGroupCoverFile(null);
-        fetchHubData();
-        // Update local group selected state
-        setSelectedGroup(res.group);
-        setGroupDetails(prev => prev ? { ...prev, name: res.group.name, description: res.group.description, cover_image: res.group.cover_image } : null);
-        alert('Group settings updated successfully!');
-      }
-    } catch (err: any) {
-      console.error('Failed to update group information:', err);
-      alert(err.message || 'Failed to update group settings.');
-    } finally {
-      setSavingGroupInfo(false);
-    }
-  };
 
   // Split details calculator based on balances from backend (Group Settings Expense section)
   const getExpensesSummary = () => {
@@ -1219,19 +1150,20 @@ export const GroupPlanner: React.FC = () => {
                   </div>
                 </div>
               </div>
-
-              {/* Settings Action (Groups only) */}
+              {/* Settings and Board Actions (Groups only) */}
               {selectedGroupId && (
-                <button
-                  onClick={() => {
-                    setSettingsSubTab('info');
-                    setShowSettingsModal(true);
-                  }}
-                  className="p-2.5 hover:bg-slate-150/45 dark:hover:bg-slate-800 rounded-xl transition-all flex items-center gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-350 border border-slate-100 dark:border-slate-800 cursor-pointer shadow-2xs bg-white dark:bg-slate-900"
-                >
-                  <SettingsIcon className="h-4 w-4" />
-                  <span>Group Board & Settings</span>
-                </button>
+                <div className="flex items-center">
+                  <button
+                    onClick={() => {
+                      setSettingsSubTab('info');
+                      setShowSettingsModal(true);
+                    }}
+                    className="p-2.5 hover:bg-emerald-50 dark:hover:bg-emerald-950/20 rounded-xl transition-all flex items-center gap-1.5 text-xs font-bold text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800 cursor-pointer shadow-2xs bg-emerald-50/50 dark:bg-emerald-950/10"
+                  >
+                    <CheckSquare className="h-4 w-4" />
+                    <span className="hidden sm:inline">Group Board</span>
+                  </button>
+                </div>
               )}
             </div>
 
@@ -1348,7 +1280,7 @@ export const GroupPlanner: React.FC = () => {
       {/* 3. FLOATING CREATE GROUP MODAL */}
       {showCreateModal && (
         <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-slate-900 border border-slate-250 dark:border-slate-800 rounded-3xl p-6 w-full max-w-md shadow-2xl animate-fade-in font-sans flex flex-col max-h-[85vh] overflow-hidden">
+          <div className="bg-white dark:bg-slate-900/60 border border-slate-100 dark:border-slate-800/60 rounded-3xl p-6 w-full max-w-md shadow-2xl animate-fade-in font-sans flex flex-col max-h-[85vh] overflow-hidden">
             
             <div className="flex justify-between items-center mb-4 pb-2 border-b border-slate-100 dark:border-slate-800 shrink-0">
               <h3 className="text-lg font-bold font-serif text-slate-800 dark:text-slate-100">Create Travel Group</h3>
@@ -1503,7 +1435,7 @@ export const GroupPlanner: React.FC = () => {
             {/* Modal Header */}
             <div className="p-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between shrink-0">
               <div className="flex items-center gap-2 text-slate-800 dark:text-slate-100">
-                <SettingsIcon className="h-5 w-5 text-emerald-500 animate-spin-slow" />
+                <CheckSquare className="h-5 w-5 text-emerald-500" />
                 <h3 className="text-md font-bold font-serif">Group Planner Board</h3>
               </div>
               <button
@@ -1520,7 +1452,7 @@ export const GroupPlanner: React.FC = () => {
                 onClick={() => setSettingsSubTab('info')}
                 className={`flex-1 py-3 font-bold text-center border-b-2 transition-colors ${settingsSubTab === 'info' ? 'border-emerald-500 text-emerald-600 dark:text-emerald-400' : 'border-transparent text-slate-500 hover:text-slate-800'}`}
               >
-                Info
+                Group Info
               </button>
               <button
                 onClick={() => setSettingsSubTab('planning')}
@@ -1545,94 +1477,81 @@ export const GroupPlanner: React.FC = () => {
             {/* Content viewport based on subtab */}
             <div className="flex-1 overflow-y-auto p-6 space-y-6">
               
-              {/* TAB 1: Group Info (Modify details + Cover picture) */}
+              {/* TAB 1: Group Info (Read-only details + Relocated Leave Group) */}
               {settingsSubTab === 'info' && (
-                <>
-                  <form onSubmit={handleSaveGroupInfo} className="space-y-5 text-xs font-semibold">
-                    <div className="space-y-1.5 flex flex-col items-center">
-                      <label className="text-[10px] uppercase font-bold text-slate-450 self-start">Cover Image</label>
-                      {editGroupCoverPreview ? (
-                        <div className="relative h-40 w-full rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-800 bg-slate-50/50">
-                          <img src={editGroupCoverPreview} alt="Cover Preview" className="h-full w-full object-cover" />
-                          <label className="absolute right-2 top-2 px-3 py-1.5 bg-black/60 hover:bg-black/75 rounded-lg text-white font-bold cursor-pointer text-[10px]">
-                            Change Image
-                            <input
-                              type="file"
-                              accept="image/*"
-                              onChange={handleEditGroupCoverSelect}
-                              className="hidden"
-                            />
-                          </label>
-                        </div>
-                      ) : (
-                        <label className="h-40 w-full border-2 border-dashed border-slate-200 dark:border-slate-800 hover:border-emerald-500 rounded-2xl flex flex-col items-center justify-center cursor-pointer text-slate-400 transition-all">
-                          <Image className="h-8 w-8 opacity-45 mb-1" />
-                          <span className="text-[10px]">Upload Group Cover</span>
-                          <input
-                            type="file"
-                            accept="image/*"
-                            onChange={handleEditGroupCoverSelect}
-                            className="hidden"
-                          />
-                        </label>
-                      )}
-                    </div>
-
-                    <div className="space-y-1">
-                      <label className="text-[10px] uppercase font-bold text-slate-450">Group Name</label>
-                      <input
-                        type="text"
-                        required
-                        value={editGroupName}
-                        onChange={(e) => setEditGroupName(e.target.value)}
-                        className="w-full bg-slate-50 border border-slate-200 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 rounded-xl px-3 py-2.5 dark:bg-slate-950 dark:border-slate-850 dark:text-white"
+                <div className="space-y-6">
+                  {/* Group Cover banner */}
+                  {selectedGroup?.cover_image && (
+                    <div className="relative h-44 w-full rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-950/40">
+                      <img
+                        src={selectedGroup.cover_image}
+                        alt={selectedGroup.name}
+                        className="h-full w-full object-cover"
                       />
                     </div>
+                  )}
 
-                    <div className="space-y-1">
-                      <label className="text-[10px] uppercase font-bold text-slate-450">Description</label>
-                      <textarea
-                        value={editGroupDesc}
-                        onChange={(e) => setEditGroupDesc(e.target.value)}
-                        rows={4}
-                        className="w-full bg-slate-50 border border-slate-200 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 rounded-xl p-3 dark:bg-slate-950 dark:border-slate-850 dark:text-white leading-normal"
-                      />
-                    </div>
+                  {/* Group Identity */}
+                  <div className="space-y-2">
+                    <h3 className="text-lg font-bold text-slate-800 dark:text-slate-150 font-serif">
+                      {selectedGroup?.name}
+                    </h3>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed whitespace-pre-wrap">
+                      {selectedGroup?.description || 'No group description provided.'}
+                    </p>
+                  </div>
 
-                    <div className="bg-slate-55 bg-slate-50 dark:bg-slate-850/40 p-4 rounded-2xl text-[10px] font-medium leading-relaxed text-slate-500 dark:text-slate-400 border border-slate-100/50">
-                      <div className="flex justify-between items-center">
-                        <span>Group ID:</span>
-                        <span className="font-bold text-slate-700 dark:text-slate-300">#{selectedGroupId}</span>
-                      </div>
-                      <div className="flex justify-between items-center mt-2">
-                        <span>Created On:</span>
-                        <span className="font-bold text-slate-700 dark:text-slate-300">
-                          {new Date(selectedGroup.created_at).toLocaleDateString([], { year: 'numeric', month: 'long', day: 'numeric' })}
+                  {/* Info Cards Grid */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+                    <div className="bg-slate-50 dark:bg-slate-850/30 p-4 rounded-xl border border-slate-100/50 dark:border-slate-850/50 flex items-center gap-3">
+                      <Shield className="h-5 w-5 text-emerald-500" />
+                      <div>
+                        <span className="text-[9px] text-slate-400 uppercase font-bold block">Creator / Admin</span>
+                        <span className="text-xs font-bold text-slate-700 dark:text-slate-200">
+                          {groupDetails?.members?.find(m => m.role === 'admin')?.username || 'Admin'}
                         </span>
                       </div>
                     </div>
 
-                    <button
-                      type="submit"
-                      disabled={savingGroupInfo || !editGroupName.trim()}
-                      className="w-full py-3 bg-emerald-500 hover:bg-emerald-600 disabled:bg-slate-100 text-white font-bold rounded-xl text-xs transition-colors cursor-pointer shadow-md"
-                    >
-                      {savingGroupInfo ? 'Saving Settings...' : 'Save Group Info'}
-                    </button>
-                  </form>
+                    <div className="bg-slate-50 dark:bg-slate-850/30 p-4 rounded-xl border border-slate-100/50 dark:border-slate-850/50 flex items-center gap-3">
+                      <Calendar className="h-5 w-5 text-emerald-500" />
+                      <div>
+                        <span className="text-[9px] text-slate-400 uppercase font-bold block">Created On</span>
+                        <span className="text-xs font-bold text-slate-700 dark:text-slate-200">
+                          {selectedGroup?.created_at
+                            ? new Date(selectedGroup.created_at).toLocaleDateString([], { year: 'numeric', month: 'long', day: 'numeric' })
+                            : 'N/A'}
+                        </span>
+                      </div>
+                    </div>
 
-                  <div className="pt-4 mt-4 border-t border-slate-150 dark:border-slate-800">
+                    <div className="bg-slate-50 dark:bg-slate-850/30 p-4 rounded-xl border border-slate-100/50 dark:border-slate-850/50 flex items-center gap-3 sm:col-span-2">
+                      <Users className="h-5 w-5 text-emerald-500" />
+                      <div>
+                        <span className="text-[9px] text-slate-400 uppercase font-bold block">Members count</span>
+                        <span className="text-xs font-bold text-slate-700 dark:text-slate-200">
+                          {groupDetails?.members?.filter(m => m.status === 'accepted').length || 0} members active
+                          {groupDetails?.members?.some(m => m.status === 'pending') && 
+                            ` (${groupDetails.members.filter(m => m.status === 'pending').length} pending invite)`}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Leave Group Action */}
+                  <div className="pt-6 border-t border-slate-150 dark:border-slate-800">
                     <button
                       type="button"
                       onClick={handleLeaveGroup}
                       disabled={leavingGroup}
-                      className="w-full py-3 bg-rose-500 hover:bg-rose-600 disabled:bg-slate-100 text-white font-bold rounded-xl text-xs transition-colors cursor-pointer shadow-md"
+                      className="w-full py-3 bg-rose-500 hover:bg-rose-600 disabled:bg-slate-100 text-white font-bold rounded-xl text-xs transition-colors cursor-pointer shadow-md flex items-center justify-center gap-1.5"
                     >
                       {leavingGroup ? 'Leaving Group...' : 'Leave Group'}
                     </button>
                   </div>
-                </>
+                </div>
               )}
+
 
               {/* TAB 2: Travel Planning (Notes + Proposals Activity Voting) */}
               {settingsSubTab === 'planning' && (

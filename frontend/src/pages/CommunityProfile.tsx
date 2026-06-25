@@ -18,7 +18,6 @@ export const CommunityProfile: React.FC = () => {
   // Posts Feed State
   const [posts, setPosts] = useState<any[]>([]);
   const [newPostContent, setNewPostContent] = useState('');
-  const [postPhotoUrl, setPostPhotoUrl] = useState('');
   const [postPhotoFile, setPostPhotoFile] = useState<File | null>(null);
   const [isPosting, setIsPosting] = useState(false);
   const [openCommentsPostId, setOpenCommentsPostId] = useState<number | null>(null);
@@ -135,8 +134,6 @@ export const CommunityProfile: React.FC = () => {
       formData.append('content', newPostContent);
       if (postPhotoFile) {
         formData.append('photo', postPhotoFile);
-      } else if (postPhotoUrl) {
-        formData.append('photo_url', postPhotoUrl);
       }
 
       const response = await fetch(`http://localhost:5000/api/communities/${id}/posts`, {
@@ -154,7 +151,6 @@ export const CommunityProfile: React.FC = () => {
       // Add new post to start of state feed
       setPosts(prev => [responseData.post, ...prev]);
       setNewPostContent('');
-      setPostPhotoUrl('');
       setPostPhotoFile(null);
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
@@ -398,23 +394,12 @@ export const CommunityProfile: React.FC = () => {
                       className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-800 rounded-xl focus:ring-1 focus:ring-emerald-500 focus:outline-hidden"
                     />
 
-                    {/* Photo Add Input fields */}
+                    {/* Photo Attach - file only */}
                     <div className="flex flex-col sm:flex-row gap-2.5">
-                      <div className="flex-1 relative">
-                        <input
-                          type="text"
-                          placeholder="Paste image URL (optional)..."
-                          value={postPhotoUrl}
-                          disabled={!!postPhotoFile}
-                          onChange={(e) => setPostPhotoUrl(e.target.value)}
-                          className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-800 rounded-xl focus:outline-hidden text-xs"
-                        />
-                      </div>
-                      
                       <div className="shrink-0 flex gap-2">
                         <label className="flex items-center gap-1 px-3 py-2 border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/40 text-slate-600 dark:text-slate-400 rounded-xl cursor-pointer text-xs font-bold">
                           <Camera className="h-4 w-4" />
-                          <span>Attach File</span>
+                          <span>Attach Photo</span>
                           <input
                             type="file"
                             accept="image/*"
@@ -422,7 +407,6 @@ export const CommunityProfile: React.FC = () => {
                             onChange={(e) => {
                               if (e.target.files && e.target.files[0]) {
                                 setPostPhotoFile(e.target.files[0]);
-                                setPostPhotoUrl('');
                               }
                             }}
                             className="hidden"

@@ -108,9 +108,22 @@ export const Navbar: React.FC = () => {
     e.stopPropagation();
     try {
       await respondToGroupInvite(groupId, accept);
-      await markAsRead(notifId);
+      await deleteNotification(notifId);
     } catch (err) {
       console.error('Failed to handle group invite response:', err);
+    }
+  };
+
+  const handleCommunityJoinResponse = async (e: React.MouseEvent, communityId: number, userId: number, action: 'approve' | 'decline', notifId: number) => {
+    e.stopPropagation();
+    try {
+      await apiRequest(`/communities/${communityId}/requests`, {
+        method: 'POST',
+        body: { userId, action }
+      });
+      await deleteNotification(notifId);
+    } catch (err) {
+      console.error('Failed to handle community join response:', err);
     }
   };
 
@@ -255,6 +268,16 @@ export const Navbar: React.FC = () => {
                       <p className="leading-normal break-words text-slate-850 dark:text-slate-300">
                         {notif.message}
                       </p>
+                      {/* Profile link when no avatar is present */}
+                      {notif.sender_username && !notif.sender_profile_picture && (
+                        <Link
+                          to={`/profile?username=${notif.sender_username}`}
+                          onClick={() => setNotifDropdownOpen(false)}
+                          className="inline-block text-[10px] font-bold text-emerald-600 dark:text-emerald-400 hover:underline mt-0.5"
+                        >
+                          @{notif.sender_username}
+                        </Link>
+                      )}
                       
                       {/* Action buttons for group invitations */}
                       {notif.type === 'group_invite' && notif.group_id && (
@@ -267,6 +290,24 @@ export const Navbar: React.FC = () => {
                           </button>
                           <button
                             onClick={(e) => handleGroupInviteResponse(e, notif.group_id!, false, notif.id)}
+                            className="bg-slate-150 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-750 dark:text-slate-300 font-bold px-3 py-1 rounded-lg text-[10px] cursor-pointer transition-colors"
+                          >
+                            Decline
+                          </button>
+                        </div>
+                      )}
+
+                      {/* Action buttons for community join requests */}
+                      {notif.type === 'community' && notif.action_required && notif.community_id && notif.sender_id && (
+                        <div className="flex items-center gap-2 mt-2" onClick={(e) => e.stopPropagation()}>
+                          <button
+                            onClick={(e) => handleCommunityJoinResponse(e, notif.community_id!, notif.sender_id!, 'approve', notif.id)}
+                            className="bg-emerald-500 hover:bg-emerald-600 text-white font-bold px-3 py-1 rounded-lg text-[10px] shadow-xs cursor-pointer transition-colors"
+                          >
+                            Approve
+                          </button>
+                          <button
+                            onClick={(e) => handleCommunityJoinResponse(e, notif.community_id!, notif.sender_id!, 'decline', notif.id)}
                             className="bg-slate-150 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-750 dark:text-slate-300 font-bold px-3 py-1 rounded-lg text-[10px] cursor-pointer transition-colors"
                           >
                             Decline

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { apiRequest } from '../services/api';
 import { 
-  Plus, Search, Compass, Map, Navigation, User, Sparkles, Globe, Camera, Utensils, X, Image as ImageIcon, MapPin, Check, ChevronRight
+  Plus, Search, Compass, Map, Navigation, User, Sparkles, Globe, Camera, Utensils, X, MapPin, Check, ChevronRight
 } from 'lucide-react';
 
 const CATEGORIES = [
@@ -35,8 +35,8 @@ export const CommunitiesPage: React.FC = () => {
   const [modalDestination, setModalDestination] = useState('');
   const [modalRules, setModalRules] = useState('');
   const [modalRequiresApproval, setModalRequiresApproval] = useState(false);
-  const [modalCoverUrl, setModalCoverUrl] = useState('');
   const [coverFile, setCoverFile] = useState<File | null>(null);
+  const [coverPreviewUrl, setCoverPreviewUrl] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
@@ -117,8 +117,6 @@ export const CommunitiesPage: React.FC = () => {
 
       if (coverFile) {
         formData.append('cover', coverFile);
-      } else if (modalCoverUrl) {
-        formData.append('cover_image', modalCoverUrl);
       }
 
       const response = await fetch('http://localhost:5000/api/communities', {
@@ -142,8 +140,11 @@ export const CommunitiesPage: React.FC = () => {
       setModalDestination('');
       setModalRules('');
       setModalRequiresApproval(false);
-      setModalCoverUrl('');
       setCoverFile(null);
+      if (coverPreviewUrl) {
+        URL.revokeObjectURL(coverPreviewUrl);
+        setCoverPreviewUrl(null);
+      }
 
       // Refresh list and navigate
       await fetchCommunitiesList();
@@ -179,7 +180,7 @@ export const CommunitiesPage: React.FC = () => {
       </div>
 
       {/* Discovery Search & Filter bar */}
-      <form onSubmit={handleSearchSubmit} className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800/80 rounded-2xl p-4 shadow-xs mb-8 flex flex-col md:flex-row gap-4">
+      <form onSubmit={handleSearchSubmit} className="bg-white dark:bg-slate-900/60 border border-slate-100 dark:border-slate-800/60 rounded-2xl p-4 shadow-xs mb-8 flex flex-col md:flex-row gap-4">
         
         <div className="flex-1 relative">
           <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
@@ -279,7 +280,7 @@ export const CommunitiesPage: React.FC = () => {
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-500" />
         </div>
       ) : communities.length === 0 ? (
-        <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800/80 rounded-3xl p-16 text-center text-slate-400 max-w-lg mx-auto">
+        <div className="bg-white dark:bg-slate-900/60 border border-slate-100 dark:border-slate-800/60 rounded-3xl p-16 text-center text-slate-400 max-w-lg mx-auto">
           <Globe className="h-12 w-12 mx-auto text-slate-350 opacity-50 mb-4" />
           <h3 className="text-lg font-bold text-slate-700 dark:text-slate-350">No communities found</h3>
           <p className="text-xs text-slate-450 mt-1.5">
@@ -298,7 +299,7 @@ export const CommunitiesPage: React.FC = () => {
             return (
               <div 
                 key={comm.id} 
-                className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800/80 rounded-2xl overflow-hidden shadow-xs hover-card flex flex-col justify-between"
+                className="bg-white dark:bg-slate-900/60 border border-slate-100 dark:border-slate-800/60 rounded-2xl overflow-hidden shadow-xs hover-card flex flex-col justify-between"
               >
                 <div>
                   {/* Cover image area */}
@@ -442,42 +443,73 @@ export const CommunitiesPage: React.FC = () => {
                 <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">
                   Cover Image
                 </label>
-                <div className="space-y-2">
-                  <div className="flex gap-2">
-                    <input 
-                      type="text"
-                      placeholder="Paste cover image URL..."
-                      value={modalCoverUrl}
-                      disabled={!!coverFile}
-                      onChange={(e) => setModalCoverUrl(e.target.value)}
-                      className="flex-1 px-4 py-2.5 bg-slate-50 dark:bg-slate-950 text-slate-855 dark:text-slate-200 border border-slate-250 dark:border-slate-800 rounded-xl focus:ring-1 focus:ring-emerald-500 focus:outline-hidden text-xs"
+
+                {/* Upload-only zone with preview */}
+                {coverFile && coverPreviewUrl ? (
+                  <div className="relative rounded-xl overflow-hidden border border-emerald-200 dark:border-emerald-900 bg-emerald-50 dark:bg-emerald-950/20">
+                    <img
+                      src={coverPreviewUrl}
+                      alt="Cover preview"
+                      className="w-full h-36 object-cover"
                     />
-                    <span className="text-slate-400 text-xs flex items-center font-bold">OR</span>
-                    <label className="flex items-center gap-1 px-3 py-2 border border-slate-250 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/40 text-slate-700 dark:text-slate-350 rounded-xl cursor-pointer text-xs font-bold">
-                      <ImageIcon className="h-4 w-4" />
-                      <span>Upload File</span>
-                      <input 
-                        type="file" 
-                        accept="image/*"
-                        onChange={(e) => {
-                          if (e.target.files && e.target.files[0]) {
-                            setCoverFile(e.target.files[0]);
-                            setModalCoverUrl('');
-                          }
-                        }}
-                        className="hidden"
-                      />
-                    </label>
-                  </div>
-                  {coverFile && (
-                    <div className="flex items-center justify-between bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-100 dark:border-emerald-900 rounded-xl p-2 px-3 text-xs text-emerald-700 dark:text-emerald-400">
-                      <span className="truncate font-semibold">{coverFile.name}</span>
-                      <button type="button" onClick={() => setCoverFile(null)} className="text-slate-450 hover:text-rose-500">
-                        <X className="h-4 w-4" />
-                      </button>
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent flex items-end justify-between p-3">
+                      <span className="text-white text-[10px] font-bold truncate max-w-[65%]">{coverFile.name}</span>
+                      <div className="flex gap-1.5">
+                        <label className="flex items-center gap-1 px-2.5 py-1.5 bg-white/20 hover:bg-white/30 backdrop-blur-xs text-white text-[10px] font-bold rounded-lg cursor-pointer transition-colors">
+                          <Camera className="h-3.5 w-3.5" />
+                          Change
+                          <input
+                            type="file"
+                            accept="image/*"
+                            onChange={(e) => {
+                              if (e.target.files && e.target.files[0]) {
+                                const file = e.target.files[0];
+                                if (coverPreviewUrl) URL.revokeObjectURL(coverPreviewUrl);
+                                setCoverFile(file);
+                                setCoverPreviewUrl(URL.createObjectURL(file));
+                              }
+                            }}
+                            className="hidden"
+                          />
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (coverPreviewUrl) URL.revokeObjectURL(coverPreviewUrl);
+                            setCoverFile(null);
+                            setCoverPreviewUrl(null);
+                          }}
+                          className="flex items-center justify-center p-1.5 bg-black/50 hover:bg-rose-600/80 text-white rounded-lg transition-colors"
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
                     </div>
-                  )}
-                </div>
+                  </div>
+                ) : (
+                  <label className="flex flex-col items-center justify-center gap-2 border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-xl p-6 cursor-pointer hover:border-emerald-400 dark:hover:border-emerald-700 hover:bg-emerald-50/30 dark:hover:bg-emerald-950/10 transition-all bg-slate-50 dark:bg-slate-950 group">
+                    <Camera className="h-7 w-7 text-slate-350 dark:text-slate-600 group-hover:text-emerald-500 transition-colors" />
+                    <div className="text-center">
+                      <p className="text-xs font-bold text-slate-600 dark:text-slate-400">
+                        Upload Cover Image
+                      </p>
+                      <p className="text-[10px] text-slate-400 mt-0.5">PNG, JPG, GIF up to 5MB</p>
+                    </div>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => {
+                        if (e.target.files && e.target.files[0]) {
+                          const file = e.target.files[0];
+                          if (coverPreviewUrl) URL.revokeObjectURL(coverPreviewUrl);
+                          setCoverFile(file);
+                          setCoverPreviewUrl(URL.createObjectURL(file));
+                        }
+                      }}
+                      className="hidden"
+                    />
+                  </label>
+                )}
               </div>
 
               <div>
