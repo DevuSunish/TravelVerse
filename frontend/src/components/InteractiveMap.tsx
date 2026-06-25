@@ -12,8 +12,8 @@ function mapNameToCode(countryName: string): string {
     'viet nam': 'VNM',
     'korea, republic of': 'KOR',
     'russian federation': 'RUS',
-    'dem. rep. congo': 'COD',
     'central african rep.': 'CAF',
+    'dem. rep. congo': 'COD',
     'falkland is.': 'FLK',
     's. sudan': 'SSD',
     'italy': 'ITA', 'france': 'FRA', 'spain': 'ESP', 'japan': 'JPN', 'germany': 'DEU',
@@ -53,7 +53,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({ countries, onCou
 
   const getCountryColor = (code: string, isHovered: boolean) => {
     const status = statusLookup[code];
-    
+
     if (status === 'visited') {
       return isHovered ? '#059669' : '#10b981'; // Emerald
     }
@@ -67,21 +67,24 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({ countries, onCou
     // Default unvisited colors (responsive to dark mode)
     const isDark = document.documentElement.classList.contains('dark');
     if (isDark) {
-      return isHovered ? '#475569' : '#1e293b'; // Slate-700/800
+      return isHovered ? '#334155' : '#1e293b';
     } else {
-      return isHovered ? '#cbd5e1' : '#e2e8f0'; // Slate-300/200
+      return isHovered ? '#cbd5e1' : '#e2e8f0';
     }
   };
 
+  const isDarkTheme = document.documentElement.classList.contains('dark');
+
   return (
-    <div className="relative w-full h-[350px] sm:h-[450px] bg-slate-50 dark:bg-slate-950 rounded-2xl border border-slate-100 dark:border-slate-800/80 overflow-hidden shadow-xs">
-      
+    <div className="relative w-full h-[360px] sm:h-[460px] bg-slate-50 dark:bg-slate-950 rounded-2xl border border-slate-100 dark:border-slate-800/80 overflow-hidden shadow-xs">
+
       {/* Tooltip Overlay */}
       {tooltipContent && (
-        <div className="absolute z-20 px-3 py-1.5 text-xs font-semibold rounded-lg shadow-lg bg-slate-900 text-white border border-slate-700/50 pointer-events-none transform -translate-x-1/2 -translate-y-10"
+        <div className="absolute z-20 px-3 py-1.5 text-xs font-semibold rounded-lg shadow-lg bg-slate-900 text-white border border-slate-700/50 pointer-events-none"
              style={{
-               left: hoveredCountry ? '50%' : '10px',
-               bottom: '10px'
+               left: '50%',
+               bottom: '10px',
+               transform: 'translateX(-50%)'
              }}>
           {tooltipContent}
           {statusLookup[hoveredCountry || ''] && (
@@ -93,18 +96,18 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({ countries, onCou
       )}
 
       {/* Map Legend */}
-      <div className="absolute top-4 left-4 z-20 flex flex-col gap-2 p-3 bg-white/95 dark:bg-slate-900/95 border border-slate-100 dark:border-slate-800/80 rounded-xl shadow-md backdrop-blur-xs text-xs">
+      <div className="absolute top-4 left-4 z-20 flex flex-col gap-2 p-3 bg-white/90 dark:bg-slate-900/90 border border-slate-100 dark:border-slate-800/80 rounded-xl shadow-md backdrop-blur-xs text-[10px]">
         <div className="flex items-center gap-2">
-          <div className="w-3.5 h-3.5 rounded-sm bg-emerald-500" />
-          <span className="font-medium text-slate-700 dark:text-slate-300">Visited ({countries.filter(c => c.status === 'visited').length})</span>
+          <div className="w-3 h-3 rounded-full bg-emerald-500" />
+          <span className="font-bold text-slate-700 dark:text-slate-350">Visited ({countries.filter(c => c.status === 'visited').length})</span>
         </div>
         <div className="flex items-center gap-2">
-          <div className="w-3.5 h-3.5 rounded-sm bg-amber-500" />
-          <span className="font-medium text-slate-700 dark:text-slate-300">Planned ({countries.filter(c => c.status === 'planned').length})</span>
+          <div className="w-3 h-3 rounded-full bg-amber-500" />
+          <span className="font-bold text-slate-700 dark:text-slate-350">Planned ({countries.filter(c => c.status === 'planned').length})</span>
         </div>
         <div className="flex items-center gap-2">
-          <div className="w-3.5 h-3.5 rounded-sm bg-rose-500" />
-          <span className="font-medium text-slate-700 dark:text-slate-300">Wishlist ({countries.filter(c => c.status === 'wishlist').length})</span>
+          <div className="w-3 h-3 rounded-full bg-rose-500" />
+          <span className="font-bold text-slate-700 dark:text-slate-350">Wishlist ({countries.filter(c => c.status === 'wishlist').length})</span>
         </div>
       </div>
 
@@ -113,14 +116,14 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({ countries, onCou
         projectionConfig={{ scale: 145 }}
         style={{ width: "100%", height: "100%" }}
       >
-        <ZoomableGroup zoom={1} minZoom={1} maxZoom={4}>
+        <ZoomableGroup center={[12, 20]} minZoom={1} maxZoom={6}>
           <Geographies geography={geoUrl}>
             {({ geographies }) =>
               geographies.map((geo) => {
                 const countryName = geo.properties.name;
                 const code = mapNameToCode(countryName);
                 const currentStatus = statusLookup[code];
-                
+
                 return (
                   <Geography
                     key={geo.rsmKey}
@@ -141,22 +144,22 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({ countries, onCou
                     style={{
                       default: {
                         fill: getCountryColor(code, false),
-                        stroke: "#ffffff",
-                        strokeWidth: 0.4,
+                        stroke: isDarkTheme ? "rgba(255,255,255,0.06)" : "#ffffff",
+                        strokeWidth: isDarkTheme ? 0.5 : 0.4,
                         outline: "none",
                         transition: "fill 0.2s ease"
                       },
                       hover: {
                         fill: getCountryColor(code, true),
-                        stroke: "#ffffff",
-                        strokeWidth: 0.6,
+                        stroke: isDarkTheme ? "rgba(255,255,255,0.1)" : "#ffffff",
+                        strokeWidth: isDarkTheme ? 0.6 : 0.5,
                         outline: "none",
                         cursor: readOnly ? "default" : "pointer",
                         transition: "fill 0.2s ease"
                       },
                       pressed: {
                         fill: getCountryColor(code, true),
-                        stroke: "#ffffff",
+                        stroke: isDarkTheme ? "rgba(255,255,255,0.15)" : "#ffffff",
                         strokeWidth: 0.8,
                         outline: "none"
                       }
@@ -171,3 +174,5 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({ countries, onCou
     </div>
   );
 };
+
+export default InteractiveMap;

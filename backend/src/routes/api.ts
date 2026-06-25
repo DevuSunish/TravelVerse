@@ -2,14 +2,14 @@ import { Router } from 'express';
 import { authMiddleware } from '../middleware/auth';
 
 // Controller imports
-import { register, login, getProfile, updateProfile, uploadProfilePicture } from '../controllers/authController';
+import { register, login, getProfile, updateProfile, uploadProfilePicture, searchUsers } from '../controllers/authController';
 import { upload } from '../middleware/upload';
-import { 
-  getTrips, getTripById, createTrip, updateTrip, deleteTrip, 
-  addTripPhotos, getItineraries, createOrUpdateItinerary, createActivity 
+import {
+  getTrips, getTripById, createTrip, updateTrip, deleteTrip,
+  addTripPhotos, getItineraries, createOrUpdateItinerary, createActivity
 } from '../controllers/tripController';
-import { 
-  createGroup, getGroups, getGroupDetails, inviteMember, 
+import {
+  createGroup, getGroups, getGroupDetails, inviteMember,
   respondToInvitation, voteOnActivity, createGroupItinerary, createGroupActivity,
   removeGroupMember, leaveGroup
 } from '../controllers/groupController';
@@ -19,9 +19,9 @@ import {
   getUnreadChatCount
 } from '../controllers/chatController';
 import { addExpense, getExpenses, deleteExpense } from '../controllers/expenseController';
-import { 
-  createRecommendation, getRecommendations, toggleLike, addComment, getComments, 
-  followUser, unfollowUser, getActivityFeed, searchEverything, getWishlist, 
+import {
+  createRecommendation, getRecommendations, toggleLike, addComment, getComments,
+  followUser, unfollowUser, getActivityFeed, searchEverything, getWishlist,
   addToWishlist, removeFromWishlist, getNotifications, markNotificationRead,
   markAllNotificationsRead, deleteNotification, deleteAllNotifications,
   checkFollowStatus, getFollowersCount, getFollowingCount,
@@ -53,6 +53,7 @@ router.post('/auth/login', login);
 router.get('/auth/profile', authMiddleware, getProfile);
 router.put('/auth/profile', authMiddleware, updateProfile);
 router.post('/auth/profile/upload', authMiddleware, upload.single('profilePicture'), uploadProfilePicture);
+router.get('/auth/search', authMiddleware, searchUsers);
 
 // --- TRIPS ROUTES ---
 router.get('/trips', authMiddleware, getTrips);
