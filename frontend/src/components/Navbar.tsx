@@ -2,23 +2,24 @@ import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useNotifications, ParsedNotification } from '../context/NotificationContext';
-import { 
-  Compass, Map, Sparkles, Award, 
+import {
+  Compass, Map, Sparkles, Award,
   Menu, X, LogOut, User as UserIcon, Settings, Calendar,
   Bell, Trash2, Check, Heart, MessageSquare, Users
 } from 'lucide-react';
 import { apiRequest } from '../services/api';
+import { UserSearchBar } from './UserSearchBar';
 
 export const Navbar: React.FC = () => {
   const { user, logout } = useAuth();
-  const { 
-    notifications, 
-    unreadCount, 
-    markAsRead, 
-    markAllAsRead, 
-    deleteNotification, 
-    clearAllNotifications, 
-    respondToGroupInvite 
+  const {
+    notifications,
+    unreadCount,
+    markAsRead,
+    markAllAsRead,
+    deleteNotification,
+    clearAllNotifications,
+    respondToGroupInvite
   } = useNotifications();
   const navigate = useNavigate();
   const location = useLocation();
@@ -46,7 +47,7 @@ export const Navbar: React.FC = () => {
 
   const formatTimeAgo = (dateString?: string) => {
     if (!dateString) return 'Just now';
-    
+
     let date = new Date(dateString);
     // SQLite returns "YYYY-MM-DD HH:MM:SS" which does not contain 'T' or 'Z'.
     // If we parse this string in the browser, it will interpret it as local time.
@@ -234,11 +235,10 @@ export const Navbar: React.FC = () => {
                   <div
                     key={notif.id}
                     onClick={() => handleNotificationClick(notif)}
-                    className={`relative p-3.5 flex gap-3 text-xs transition-all duration-200 hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer group ${
-                      isUnread
+                    className={`relative p-3.5 flex gap-3 text-xs transition-all duration-200 hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer group ${isUnread
                         ? 'bg-emerald-50/15 dark:bg-emerald-950/5 border-l-2 border-emerald-500 font-medium'
                         : 'text-slate-600 dark:text-slate-400'
-                    }`}
+                      }`}
                   >
                     {/* Icon or Avatar */}
                     <div className="shrink-0" onClick={(e) => { if (notif.sender_username) e.stopPropagation(); }}>
@@ -278,7 +278,7 @@ export const Navbar: React.FC = () => {
                           @{notif.sender_username}
                         </Link>
                       )}
-                      
+
                       {/* Action buttons for group invitations */}
                       {notif.type === 'group_invite' && notif.group_id && (
                         <div className="flex items-center gap-2 mt-2" onClick={(e) => e.stopPropagation()}>
@@ -389,11 +389,10 @@ export const Navbar: React.FC = () => {
                 <Link
                   key={link.path}
                   to={link.path}
-                  className={`flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
-                    isActive(link.path)
+                  className={`flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${isActive(link.path)
                       ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-400'
                       : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800/60'
-                  }`}
+                    }`}
                 >
                   <div className="relative">
                     <Icon className="h-4.5 w-4.5" />
@@ -409,8 +408,11 @@ export const Navbar: React.FC = () => {
             })}
           </div>
 
-          {/* Right actions: User Dropdown */}
-          <div className="hidden md:flex items-center gap-4">
+          {/* Right actions: Search + Notifications + Profile */}
+          <div className="hidden md:flex items-center gap-2">
+
+            {/* Global User Search */}
+            <UserSearchBar />
 
             {/* Notification Bell */}
             <div className="relative">
@@ -509,7 +511,11 @@ export const Navbar: React.FC = () => {
       {/* Mobile Menu */}
       {mobileMenuOpen && (
         <div className="md:hidden border-t border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 transition-all duration-200">
-          <div className="px-2 pt-2 pb-4 space-y-1">
+          <div className="px-2 pt-3 pb-4 space-y-1">
+            {/* Mobile Search Bar */}
+            <div className="px-2 pb-2">
+              <UserSearchBar fullWidth onClose={() => setMobileMenuOpen(false)} />
+            </div>
             {navLinks.map((link) => {
               const Icon = link.icon;
               return (
@@ -517,11 +523,10 @@ export const Navbar: React.FC = () => {
                   key={link.path}
                   to={link.path}
                   onClick={() => setMobileMenuOpen(false)}
-                  className={`flex items-center gap-3 px-4 py-3 rounded-xl text-base font-medium ${
-                    isActive(link.path)
+                  className={`flex items-center gap-3 px-4 py-3 rounded-xl text-base font-medium ${isActive(link.path)
                       ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/50 dark:text-emerald-400'
                       : 'text-slate-600 hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-800'
-                  }`}
+                    }`}
                 >
                   <div className="relative">
                     <Icon className="h-5 w-5" />

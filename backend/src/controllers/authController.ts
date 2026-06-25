@@ -24,7 +24,7 @@ function calculateBadges(stats: { countriesCount: number; tripsCount: number; re
   if (stats.tripsCount >= 10) {
     badges.push({ id: 'nomad', name: 'Nomad', description: 'Logged 10 or more trips', icon: 'Compass', color: 'text-purple-500 bg-purple-50 dark:bg-purple-950/20' });
   }
-  
+
   // Default badge if none
   if (badges.length === 0) {
     badges.push({ id: 'newbie', name: 'Wanderlust', description: 'Joined TravelVerse! Ready for adventure', icon: 'Sparkles', color: 'text-teal-500 bg-teal-50 dark:bg-teal-950/20' });
@@ -144,7 +144,7 @@ export async function getProfile(req: AuthRequest, res: Response) {
     const userId = req.user?.id;
     // Find target user by username if provided in query, otherwise current logged in user
     const usernameParam = req.query.username;
-    
+
     let user;
     if (usernameParam) {
       const users = await query('SELECT id, username, email, bio, home_country, profile_picture, avatar_url, cover_picture FROM users WHERE username = $1', [usernameParam]);
@@ -164,7 +164,7 @@ export async function getProfile(req: AuthRequest, res: Response) {
     const tripsCountRes = await query('SELECT COUNT(*) as count FROM trips WHERE user_id = $1 AND status = \'past\'', [user.id]);
     const countriesCountRes = await query('SELECT COUNT(DISTINCT country_code) as count FROM countries_visited WHERE user_id = $1 AND status = \'visited\'', [user.id]);
     const recsCountRes = await query('SELECT COUNT(*) as count FROM recommendations WHERE user_id = $1', [user.id]);
-    
+
     const tripsCount = parseInt(tripsCountRes[0]?.count || '0');
     const countriesCount = parseInt(countriesCountRes[0]?.count || '0');
     const recsCount = parseInt(recsCountRes[0]?.count || '0');
@@ -178,7 +178,7 @@ export async function getProfile(req: AuthRequest, res: Response) {
     // Social follow counts
     const followersRes = await query('SELECT COUNT(*) as count FROM follows WHERE following_id = $1', [user.id]);
     const followingRes = await query('SELECT COUNT(*) as count FROM follows WHERE follower_id = $1', [user.id]);
-    
+
     // Check if the current user is following this user
     let isFollowing = false;
     if (userId && userId !== user.id) {
@@ -296,3 +296,52 @@ export async function uploadProfilePicture(req: AuthRequest, res: Response) {
     res.status(500).json({ message: 'Server error uploading image' });
   }
 }
+
+export async function searchUsers(req: AuthRequest, res: Response) {
+  try {
+    const requestingUserId = req.user?.id;
+    const rawQ = ((req.query.q as string) || '').trim();
+
+    if (!rawQ) {
+      return res.json({ users: [] });
+    }
+
+    // Wrap in % for LIKE partial match
+    const pattern = `%${rawQ}%`;
+
+    // Use unique parameter positions ($1, $2, $3, $4) so the SQLite adapter
+    // (which converts $N → ?) creates the correct number of ? placeholders.
+    // LOWER() on both sides gives case-insensitive search on both Postgres and SQLite.
+    const results = await query(
+      `SELECT id, username, bio, profile_picture, avatar_url
+       FROM users
+       WHERE id != $1
+         AND (
+           LOWER(username) LIKE LOWER($2)
+           OR LOWER(COALESCE(bio, '')) LIKE LOWER($3)
+         )
+       ORDER BY
+         CASE WHEN LOWER(username) LIKE LOWER($4) THEN 0 ELSE 1 END,
+         username ASC
+       LIMIT 10`,
+      [requestingUserId, pattern, pattern, `${rawQ.toLowerCase()}%`]
+    );
+
+    const users = results.map((u: any) => ({
+      id: u.id,
+      username: u.username,
+      bio: u.bio || null,
+      profile_picture:
+        u.profile_picture ||
+        u.avatar_url ||
+        `https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(u.username)}`
+    }));
+
+    console.log(`[Search] query="${rawQ}" → ${users.length} result(s) found`);
+    res.json({ users });
+  } catch (err: any) {
+    console.error('[Search] searchUsers error:', err.message);
+    res.status(500).json({ message: 'Server error during user search' });
+  }
+}
+
