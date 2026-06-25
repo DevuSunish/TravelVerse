@@ -11,7 +11,7 @@ import {
 import { 
   createGroup, getGroups, getGroupDetails, inviteMember, 
   respondToInvitation, voteOnActivity, createGroupItinerary, createGroupActivity,
-  updateGroup, removeGroupMember, leaveGroup
+  removeGroupMember, leaveGroup
 } from '../controllers/groupController';
 import {
   createOrGetConversation, getConversations, getConversationMessages,
@@ -69,7 +69,6 @@ router.post('/trips/activity', authMiddleware, createActivity);
 router.post('/groups', authMiddleware, createGroup);
 router.get('/groups', authMiddleware, getGroups);
 router.get('/groups/:id', authMiddleware, getGroupDetails);
-router.put('/groups/:id', authMiddleware, updateGroup);
 router.post('/groups/:groupId/leave', authMiddleware, leaveGroup);
 router.delete('/groups/:groupId/members/:memberUserId', authMiddleware, removeGroupMember);
 router.post('/groups/invite', authMiddleware, inviteMember);

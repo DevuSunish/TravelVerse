@@ -209,7 +209,7 @@ export async function respondToInvitation(req: AuthRequest, res: Response) {
         const notifData = JSON.parse(inviteNotif[0].content);
         inviterId = notifData.inviter_id || notifData.sender_id;
         groupName = notifData.group_name || 'a travel group';
-        await query('UPDATE notifications SET is_read = TRUE WHERE id = $1', [inviteNotif[0].id]);
+        await query('DELETE FROM notifications WHERE id = $1', [inviteNotif[0].id]);
       }
     } catch (e) {
       console.warn('Could not retrieve inviter from notification:', e);
@@ -485,40 +485,6 @@ export async function createGroupActivity(req: AuthRequest, res: Response) {
   }
 }
 
-export async function updateGroup(req: AuthRequest, res: Response) {
-  try {
-    const userId = req.user?.id;
-    if (!userId) {
-      return res.status(401).json({ message: 'Unauthorized' });
-    }
-    const { id } = req.params;
-    const { name, description, cover_image } = req.body;
-
-    // Verify current user is admin of group
-    const membership = await query(
-      'SELECT role FROM group_members WHERE group_id = $1 AND user_id = $2 AND status = \'accepted\'',
-      [id, userId]
-    );
-    if (membership.length === 0 || membership[0].role !== 'admin') {
-      return res.status(403).json({ message: 'Only admins can modify group settings' });
-    }
-
-    // Update group info
-    const updated = await query(
-      'UPDATE travel_groups SET name = COALESCE($1, name), description = COALESCE($2, description), cover_image = COALESCE($3, cover_image), updated_at = CURRENT_TIMESTAMP WHERE id = $4 RETURNING *',
-      [name, description, cover_image, id]
-    );
-
-    if (updated.length === 0) {
-      return res.status(404).json({ message: 'Group not found' });
-    }
-
-    res.json({ group: updated[0] });
-  } catch (err: any) {
-    console.error('Update group error:', err.message);
-    res.status(500).json({ message: 'Server error updating group' });
-  }
-}
 
 export async function removeGroupMember(req: AuthRequest, res: Response) {
   try {

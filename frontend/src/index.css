@@ -113,3 +113,12 @@ button, input, select, textarea {
 .dark .hover-card:hover {
   box-shadow: 0 12px 30px -10px rgba(0, 0, 0, 0.5);
 }
+
+/* No-scrollbar utility — hides scrollbar while preserving scroll functionality */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}

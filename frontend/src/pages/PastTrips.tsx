@@ -2,9 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { apiRequest, API_BASE_URL } from '../services/api';
 import { TripCard, Trip } from '../components/TripCard';
-import { LeafletMap } from '../components/LeafletMap';
 import { 
-  Plus, Grid, List, Map, 
+  Plus, Grid, List, 
   X, Check, Compass, Upload
 } from 'lucide-react';
 
@@ -13,7 +12,7 @@ export const PastTrips: React.FC = () => {
 
   const [trips, setTrips] = useState<Trip[]>([]);
   const [loading, setLoading] = useState(true);
-  const [viewMode, setViewMode] = useState<'timeline' | 'gallery' | 'map'>('timeline');
+  const [viewMode, setViewMode] = useState<'timeline' | 'gallery'>('timeline');
 
   // Form states (derived from URL query parameters)
   const showForm = searchParams.get('action') === 'new';
@@ -196,49 +195,6 @@ export const PastTrips: React.FC = () => {
     }
   };
 
-  // Hash function to get deterministic coordinates for map view (React purity rule)
-  const getDeterministicCoords = (name: string) => {
-    let hash = 0;
-    for (let i = 0; i < name.length; i++) {
-      hash = name.charCodeAt(i) + ((hash << 5) - hash);
-    }
-    const lat = 30 + (Math.abs(hash) % 20);
-    const lng = -30 + (Math.abs(hash >> 8) % 60);
-    return { lat, lng };
-  };
-
-  // Compile coordinates list for Leaflet view
-  const mapLocations = trips
-    .filter(t => t.status === 'past') // Only pin actual visited trips
-    .map(t => {
-      // For demo mock locations, if lat/lng are missing we can assign standard coordinates based on country codes
-      // Let's create standard centers for popular countries:
-      const locationsCenter: { [key: string]: { lat: number; lng: number } } = {
-        'FRA': { lat: 46.2276, lng: 2.2137 },
-        'ESP': { lat: 40.4637, lng: -3.7492 },
-        'USA': { lat: 37.0902, lng: -95.7129 },
-        'ITA': { lat: 41.8719, lng: 12.5674 },
-        'JPN': { lat: 36.2048, lng: 138.2529 },
-        'GBR': { lat: 55.3781, lng: -3.4360 },
-        'DEU': { lat: 51.1657, lng: 10.4515 },
-        'CAN': { lat: 56.1304, lng: -106.3468 },
-        'MEX': { lat: 23.6345, lng: -102.5528 },
-        'THA': { lat: 15.8700, lng: 100.9925 },
-        'PER': { lat: -9.1900, lng: -75.0152 }
-      };
-
-      const code = t.country.substring(0, 3).toUpperCase();
-      const coord = locationsCenter[code] || getDeterministicCoords(t.country);
-      
-      return {
-        id: t.id,
-        name: t.city ? `${t.city}, ${t.country}` : t.country,
-        lat: coord.lat,
-        lng: coord.lng,
-        description: t.title
-      };
-    });
-
   // Extract all photos from trips
   const galleryPhotos: { id: number, tripId: number, url: string, caption: string, title: string }[] = [];
   trips.forEach((t) => {
@@ -307,17 +263,6 @@ export const PastTrips: React.FC = () => {
           <Grid className="h-4.5 w-4.5" />
           Gallery Wall
         </button>
-        <button
-          onClick={() => setViewMode('map')}
-          className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg transition-all ${
-            viewMode === 'map'
-              ? 'bg-white dark:bg-slate-850 shadow-xs text-emerald-600 dark:text-emerald-400'
-              : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
-          }`}
-        >
-          <Map className="h-4.5 w-4.5" />
-          Pin Routes
-        </button>
       </div>
 
       {loading ? (
@@ -363,13 +308,6 @@ export const PastTrips: React.FC = () => {
                   </div>
                 </div>
               ))}
-            </div>
-          )}
-
-          {/* Map View */}
-          {viewMode === 'map' && (
-            <div className="h-[60vh] w-full animate-fade-in">
-              <LeafletMap locations={mapLocations} />
             </div>
           )}
         </>
