@@ -5,7 +5,7 @@ import { apiRequest } from '../services/api';
 import { InteractiveMap } from '../components/InteractiveMap';
 import { RecommendationCard, Recommendation } from '../components/RecommendationCard';
 import { 
-  Globe, Plane, Award, Calendar, Compass, 
+  Globe, Plane, Award, Calendar, Compass,
   MapPin, Heart, MessageSquare, Plus, CheckCircle2, ListTodo, X, Users,
   Send
 } from 'lucide-react';
@@ -36,13 +36,6 @@ interface CountryFootprint {
   status: 'visited' | 'planned' | 'wishlist';
 }
 
-interface UpcomingTrip {
-  id: number;
-  title: string;
-  city?: string;
-  country: string;
-  start_date: string;
-}
 
 interface FeedItem {
   id: number;
@@ -88,8 +81,6 @@ export const Dashboard: React.FC = () => {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [feed, setFeed] = useState<FeedItem[]>([]);
   const [countries, setCountries] = useState<CountryFootprint[]>([]);
-  const [upcomingTrip, setUpcomingTrip] = useState<UpcomingTrip | null>(null);
-  const [daysRemaining, setDaysRemaining] = useState<number | null>(null);
   const [communitiesList, setCommunitiesList] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -169,20 +160,7 @@ export const Dashboard: React.FC = () => {
 
         setCountries(mapList);
 
-        // 4. Find closest upcoming trip
-        const upcomingTrips = trips.filter((t: { status: string; start_date?: string }) => t.status === 'planned' && t.start_date);
-        if (upcomingTrips.length > 0) {
-          // Sort by start date ascending
-          upcomingTrips.sort((a: { start_date?: string }, b: { start_date?: string }) => new Date(a.start_date || '').getTime() - new Date(b.start_date || '').getTime());
-          const nextTrip = upcomingTrips[0];
-          setUpcomingTrip(nextTrip);
-
-          const timeDiff = new Date(nextTrip.start_date || '').getTime() - new Date().getTime();
-          const days = Math.ceil(timeDiff / (1000 * 3600 * 24));
-          setDaysRemaining(days >= 0 ? days : 0);
-        }
-
-        // 5. Load Travel Communities
+        // 4. Load Travel Communities
         const commsData = await apiRequest('/communities');
         setCommunitiesList(commsData.communities || []);
       } catch (err) {
@@ -392,7 +370,7 @@ export const Dashboard: React.FC = () => {
             Hey, {user?.username}! 👋
           </h1>
           <p className="text-slate-500 dark:text-slate-400 mt-1">
-            Welcome to your travel command center. Pin maps, plan itineraries, and read stories.
+            Discover the world, connect with fellow travelers, and explore new destinations.
           </p>
         </div>
 
@@ -458,32 +436,6 @@ export const Dashboard: React.FC = () => {
             <InteractiveMap countries={countries} onCountryClick={handleCountryMapClick} />
           </div>
 
-          {/* 3. Upcoming Trip Countdown Widget */}
-          {upcomingTrip && daysRemaining !== null && (
-            <div className="bg-gradient-to-r from-emerald-500 to-teal-600 text-white p-6 rounded-2xl shadow-md flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 animate-float">
-              <div>
-                <span className="text-xs font-semibold uppercase tracking-wider bg-white/20 px-2.5 py-1 rounded-full">Upcoming Adventure</span>
-                <h3 className="text-xl font-bold font-serif mt-2.5">{upcomingTrip.title}</h3>
-                <div className="flex items-center gap-1 text-xs text-emerald-100 mt-1.5">
-                  <MapPin className="h-3.5 w-3.5" />
-                  <span>{upcomingTrip.city ? `${upcomingTrip.city}, ` : ''}{upcomingTrip.country}</span>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-3 shrink-0">
-                <div className="bg-white/10 border border-white/20 p-3 rounded-xl text-center min-w-[70px]">
-                  <span className="text-2xl font-black block leading-none">{daysRemaining}</span>
-                  <span className="text-[10px] text-emerald-100 font-medium">Days Left</span>
-                </div>
-                <Link
-                  to={`/trips/${upcomingTrip.id}`}
-                  className="bg-white text-emerald-700 font-bold px-4 py-3 rounded-xl text-sm hover:bg-slate-100 transition-colors shadow-sm"
-                >
-                  View Planner
-                </Link>
-              </div>
-            </div>
-          )}
 
         </div>
 
